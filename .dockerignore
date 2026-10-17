@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.env*
+coverage
+docs
+.claude
+*.md
+test
+*.tsbuildinfo
+.DS_Store
