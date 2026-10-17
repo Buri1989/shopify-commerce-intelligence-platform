@@ -17,7 +17,6 @@ alternatives and trade-offs.
   implementation. Approval is per file when design is involved.
 - TDD, every time: write the spec, run it red, write the code, run it green, format, run
   the full gate.
-- Do not split the work into subagents or parallel sessions.
 - Commit only when asked. Show the commit message first. Subject is an imperative
   sentence with no type prefix, matching the existing history.
 - After a task's code is done, answer its "questions to investigate" in
