@@ -1,0 +1,31 @@
+{
+  "name": "commerce-intelligence-infra",
+  "version": "0.0.1",
+  "description": "AWS infrastructure for Commerce Intelligence, defined with AWS CDK",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "synth": "cdk synth",
+    "diff": "cdk diff",
+    "deploy": "cdk deploy",
+    "destroy": "cdk destroy"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.273.0",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "aws-cdk": "2.1145.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}

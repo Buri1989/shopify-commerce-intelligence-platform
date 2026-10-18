@@ -20,7 +20,13 @@
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "infra:test": "npm --prefix infra test",
+    "infra:typecheck": "npm --prefix infra run typecheck",
+    "infra:synth": "npm --prefix infra run synth",
+    "infra:lint": "oxlint --type-aware infra/bin infra/lib infra/test",
+    "infra:format": "prettier --write \"infra/**/*.ts\"",
+    "infra:check": "npm run infra:test && npm run infra:typecheck && npm run infra:lint && npm run infra:format && npm run infra:synth"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

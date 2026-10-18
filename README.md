@@ -4,7 +4,8 @@ Multi-tenant Shopify app backend: NestJS 12, TypeScript, MySQL, AWS. Built phase
 phase as a backend engineering training assignment. The assignment is in
 `docs/Boris-ing.md`; each task has a design doc and a questions doc under `docs/phase-N/`.
 
-**Status:** Phase 1, Task 1.1 (backend foundation) complete. Next: Task 1.2, AWS networking.
+**Status:** Phase 1, Task 1.2 (AWS networking) code complete; its first deploy opens
+Task 1.3. Task 1.1 (backend foundation) complete.
 
 ## Requirements
 
@@ -85,6 +86,34 @@ Two-stage image on Node 24 Alpine, production dependencies only, runs as the `no
 On SIGTERM `/ready` answers 503 for 5 seconds so a load balancer can drain, then the
 process exits.
 
+## Infrastructure
+
+AWS resources are defined with AWS CDK in `infra/`, a separate npm package with its own
+dependencies and gate. Everything deploys to `eu-north-1` through an IAM Identity Center
+profile; there are no long-lived access keys.
+
+Requirements: AWS CLI v2 and a profile named `ci-admin` configured with `aws configure sso`
+(start URL and account come from the Identity Center admin).
+
+```bash
+cd infra && npm ci && cd ..
+npm run infra:check                    # tests, type-check, lint, format, synth; no AWS session needed
+aws sso login --profile ci-admin       # once per session, opens the browser
+```
+
+```bash
+cd infra
+AWS_PROFILE=ci-admin npx cdk bootstrap aws://<account-id>/eu-north-1   # once per account and region
+AWS_PROFILE=ci-admin npm run diff      # what a deploy would change
+AWS_PROFILE=ci-admin npm run deploy    # asks before creating IAM or security group changes
+```
+
+The `commerce-intelligence-dev-network` stack holds the VPC (two zones, public, private and
+isolated subnets, one NAT Gateway, an S3 gateway endpoint), the `alb`, `app` and `data`
+security groups, and a flow log of rejected traffic. While deployed it costs roughly 38 USD a
+month, almost all of it the NAT Gateway. Stage settings live in `infra/lib/config/stage-config.ts`;
+`natGatewayCount: 2` is the production value.
+
 ## Layout
 
 ```
@@ -99,6 +128,12 @@ src/
   app.setup.ts       configureApp: logger, edge middleware, shutdown hooks
   main.ts
 test/                e2e specs and the shared app-boot helper
+infra/
+  bin/app.ts         CDK entry point: stage config → NetworkStack
+  lib/config/        stage settings and the project name
+  lib/network/       the VPC, security groups, flow log, outputs, and the stack
+  lib/project-tags.ts
+  test/              template queries and stack fixtures used by the specs
 docs/                the assignment, per-task design and questions docs
 ```
 
@@ -107,3 +142,4 @@ docs/                the assignment, per-task design and questions docs
 - `docs/Boris-ing.md`: the assignment
 - `docs/phase-1/task-1.1-design.md`: decisions, alternatives and trade-offs
 - `docs/phase-1/task-1.1-questions.md`: answers to the task's questions
+- `docs/phase-1/task-1.2-design.md` and `task-1.2-questions.md`: AWS networking
