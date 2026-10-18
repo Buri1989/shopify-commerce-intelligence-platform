@@ -154,27 +154,70 @@ the two-zone layout is free; only the redundant _things inside it_ cost. This st
 for development costs about 38 USD a month idle; the production shape of the same stack about
 75 USD before any compute.
 
-## Terraform or CDK
+## Why we picked what we picked
 
-Both satisfy the assignment. CDK was chosen because the infrastructure then lives in the same
-language, linter, formatter and test runner as the application, and its assertion tests run
-in milliseconds without credentials, which fits the test-first rule exactly. CloudFormation
-keeps the state, so there is no state file to protect. The costs accepted: AWS-only, slower
-deploys through CloudFormation, a one-time bootstrap stack, and a high-level construct that can
-hide the primitives, which is why the tests enumerate every primitive by type and count.
-Terraform would have brought the industry's most common tool and a real lesson in state
-management, at the price of a second language and toolchain in the gate.
+Short reasons for each Task 1.2 decision. The alternatives and trade-offs in full are in
+`task-1.2-design.md`.
 
-## Decisions worth defending
-
-- **Region `eu-north-1`.** Merchant data stays in the EU, it is the cheapest EU region, and it
-  is close to the developer. Virginia would save a few dollars a month.
-- **Account-agnostic stacks.** Pinning the account would force a credentialed lookup at every
-  synth or an account id committed to the repository. Region is pinned; the account is whatever
-  the credentials say, and there is one.
-- **Security groups created with the network, attached later.** The rules describe traffic
-  between tiers, so they are reviewable and testable in one place before any compute exists.
-- **Reject-only flow logs with one-minute aggregation.** The first thing that goes wrong in Task
-  1.3 is a rule that blocks the load balancer, and this is the instrument that shows it.
-- **The deploy is deferred to the start of Task 1.3.** The account is bootstrapped and the
-  template is proven by synthesis; paying for an idle gateway between the two tasks buys nothing.
+- **AWS CDK in TypeScript over Terraform.** One language, linter, formatter and test runner
+  with the app; assertion tests on the synthesized template run in milliseconds without
+  credentials, which fits test-first; CloudFormation holds the state. Terraform is more
+  common in the market and teaches state management, at the cost of a second language in the
+  gate and a state file to protect.
+- **`eu-north-1` over Frankfurt or Virginia.** Merchant data stays in the EU, it is the
+  cheapest EU region, and it is close to the developer. Virginia saves a few dollars a month;
+  Frankfurt costs about a fifth more for the same residency.
+- **A separate `infra/` package, not a workspace and not files in the app package.**
+  Infrastructure and application change for different reasons and deploy through different
+  pipelines; CDK's dependencies must not enter the app's build context; the Dockerfile's
+  `npm ci` stays simple.
+- **CDK's high-level `Vpc` construct, configured explicitly, over hand-built `Cfn*`
+  resources.** Every later construct wants an `IVpc`; hand-built subnets would be re-imported
+  in every stack. The risk of hidden primitives is covered by tests that name every primitive
+  by type and count, and by reading the synthesized template before deploying.
+- **Explicit availability zones over `maxAzs` discovery.** Discovery is a credentialed
+  context lookup; an explicit list, verified against the account, makes synthesis
+  deterministic in tests, in the gate and in CI.
+- **`reservedAzs: 1`.** The allocator numbers subnets tier by tier; reserving a third zone's
+  space now means adding it later does not renumber, and therefore replace, the subnets that
+  exist.
+- **Three subnet tiers, not two.** An isolated tier with no default route at all is the right
+  home for a database; "private with NAT" is for things that must call out.
+- **One route table per subnet.** A zone's routing can change on its own, which is exactly
+  what the NAT-per-zone upgrade needs.
+- **One NAT Gateway over one per zone, a NAT instance, or containers in public subnets.**
+  Managed, half the production price, and the upgrade is one configuration value. The
+  instance saves thirty dollars for a server to patch and a failover to build; public subnets
+  remove the private tier. See question 5.
+- **S3 gateway endpoint now, interface endpoints later.** The gateway endpoint is free and
+  takes image pulls off the NAT; the five interface endpoints this project would want cost
+  more than the NAT Gateway they relieve. See question 7.
+- **Security groups created with the network and attached later.** The rules describe
+  traffic between tiers; one place makes least privilege reviewable and testable before any
+  compute exists, and later stacks pass these groups in instead of letting CDK invent
+  permissive ones.
+- **No allow-all outbound anywhere.** Each group lists its egress; `data` has none; the VPC's
+  default group is stripped of its implicit allow. A later port is a new rule, not a loosened
+  one.
+- **`MapPublicIpOnLaunch: false` on the public subnets.** Nothing gets a public address by
+  accident; the load balancer and the NAT Gateway ask for theirs.
+- **Account-agnostic, region-pinned stacks.** Pinning the account forces a credentialed lookup
+  at every synth or an account id in the repository; pinning the region stops a wrong profile
+  from deploying elsewhere. A zone typo surfaces at deploy instead of synth, which is
+  acceptable.
+- **Reject-only flow logs to CloudWatch, 14 days, one-minute aggregation.** The instrument
+  for "why can't the load balancer reach the task" in Task 1.3. Accepted traffic would mostly
+  be health checks and cost more; the log group goes with the stack because it is a
+  development diagnostic.
+- **Stack-level tags `project`, `stage`, `managed-by`.** Every resource inherits them, and
+  they become cost allocation tags once Cost Explorer is on.
+- **One typed stage config object, selected by CDK context.** Environment differences are
+  data, not branches inside constructs; `prod` is a second entry with `natGatewayCount: 2`.
+- **Template assertion tests, no snapshots.** Snapshots break on every change and prove
+  nothing specific; each test names a resource type, a count and the properties it expects,
+  following subnet → association → route table → route the way the VPC does.
+- **Test support in `infra/test/`, specs hold tests only.** Query helpers and stack fixtures
+  are shared modules; a spec file reads as a list of behaviours.
+- **Deploy from the developer machine through SSO until Task 1.5.** No long-lived keys
+  anywhere; the OIDC role later assumes the same bootstrap roles. The first deploy is
+  deferred to the start of Task 1.3 so an idle gateway is not paid for in between.
