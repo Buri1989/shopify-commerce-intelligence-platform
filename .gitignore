@@ -6,3 +6,5 @@ coverage
 *.tsbuildinfo
 .claude/
 
+infra/cdk.out/
+infra/cdk.context.json
