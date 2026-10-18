@@ -105,3 +105,53 @@ They answer different questions for different consumers.
 Verified on the Docker image in this task: after SIGTERM, `/ready` returns 503 `shutting_down`
 while `/health` stays 200, the container keeps serving for the configured 5 seconds so the load
 balancer can drain, then exits with code 0.
+
+## Why we picked what we picked
+
+Short reasons for each Task 1.1 decision. The alternatives and trade-offs in full are in
+`task-1.1-design.md`.
+
+- **NestJS over plain Express or Fastify.** The assignment grows to six phases with many
+  modules; Nest's module system and dependency injection keep that navigable and testable.
+  See question 1.
+- **zod over class-validator for validation.** One schema gives both the runtime check and
+  the TypeScript type, so a request type cannot drift from its validation. class-validator
+  needs a class per DTO and a second library for transformation. Used per parameter, not as
+  a global pipe, because a zod schema is a value with nothing for Nest to reflect on.
+- **zod for environment validation too.** Same reason, same library. The env schema is the
+  one list of variables the app reads; a bad value stops the boot naming the variable.
+- **pino over Nest's built-in logger or winston.** Pino writes JSON lines by default, which
+  CloudWatch can query by field, and it is the fastest of the three. Nest's logger prints
+  for humans; winston needs more setup to reach the same output. Nest's own startup lines are
+  routed through pino so there is one log format, not two.
+- **Request id through AsyncLocalStorage.** It lets the logger stamp the id on every line
+  without passing it as an argument through every call, and it works for lines Nest itself
+  writes.
+- **Edge middleware with `app.use`, not Nest module middleware.** Nest registers its body
+  parser before module middleware, so a malformed or oversized body would never reach ours.
+  Registering on the raw app before `init` puts us ahead of the parser.
+- **One global exception filter.** Every error, including ones Nest throws for unknown
+  routes, becomes one response shape. Clients and the log parse one format.
+- **Nest-style error body over RFC 9457 Problem Details.** Problem Details adds `type` and
+  `instance` URIs that nobody here consumes yet. The Nest shape plus `requestId` and
+  `issues` gives the client the message it needs and keeps the built-in exceptions
+  compatible. Easy to move to Problem Details later by adding fields, not changing them.
+- **Mappers plus a resolver inside the filter.** Each error source we do not own (Nest
+  exceptions, body-parser errors, terminus results) gets its own small adapter into our
+  shape. Adding a source means adding a file, not editing the filter.
+- **terminus over a hand-written readiness check.** It already handles the shutdown flip to
+  503 and ships a Prisma indicator for Phase 2. Writing that ourselves would be code to
+  maintain with no advantage.
+- **Separate `/health` and `/ready`.** Different consumers, different questions. See
+  question 7.
+- **Node 24 LTS, pinned.** The current LTS line gets security fixes for years; the local
+  machine's Node 26 is not LTS yet. Pinned with `.nvmrc` and `engines` so every environment
+  runs the same major version.
+- **Two-stage Docker image on Alpine.** The build stage carries the compiler and dev tools;
+  the runtime stage carries only the compiled app and production dependencies, runs as a
+  non-root user, and is small. Alpine's musl is fine for Prisma, which ships a musl engine.
+- **Vitest.** Already in the scaffold, native ESM and TypeScript, fast. No reason to swap it
+  for Jest.
+- **Unit tests that boot nothing from Nest.** Pure functions and hand-built fakes run in
+  milliseconds and fail for one reason. The e2e suite covers the HTTP contract over the real
+  app.
