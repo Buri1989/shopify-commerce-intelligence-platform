@@ -31,6 +31,14 @@ npm test && npm run test:e2e && npx tsc --noEmit && npm run lint && npm run form
 All of it passes before a step is called done. `npm test` does not type-check; always
 run `tsc` separately.
 
+The infrastructure package has its own gate, run from the root:
+
+```bash
+npm run infra:check
+```
+
+It needs no AWS session. `cdk synth` is part of it.
+
 ## Code rules
 
 Skills in `.claude/skills/` (senior-backend, senior-architect, tdd-guardian) are the
@@ -61,3 +69,20 @@ full reference. Apply them while writing, not after. The rules that come up most
   spec file.
 - Edge middleware is registered in `src/app.setup.ts` with `app.use` before `init`, so
   it runs ahead of the body parser.
+
+## Conventions from Task 1.2
+
+- Infrastructure lives in `infra/`, a separate npm package (not a workspace). The app never
+  imports from it and the Docker build context excludes it. Root scripts `infra:*` pass
+  through.
+- Stacks pin the region from the stage config and never the account. No context lookups, so
+  synth and tests run without credentials and `cdk.context.json` does not exist.
+- Stage settings are one typed object per stage in `infra/lib/config/stage-config.ts`,
+  selected by the `stage` context value. New environment-specific values go there.
+- Every security group is created with `allowAllOutbound: false` and gets explicit rules with
+  a description that says why.
+- Spec files hold `beforeAll` and `it` blocks only. Template queries and stack fixtures live
+  in `infra/test/` and are imported. Verbs: `find*` looks up in a template, `read*` returns
+  a resource's properties, `synthesize*` builds a template, `create*` builds a construct.
+- Deploys run from a developer machine with `AWS_PROFILE=ci-admin` until Task 1.5 moves them
+  to GitHub Actions. Read `npm run diff` before `npm run deploy`.
