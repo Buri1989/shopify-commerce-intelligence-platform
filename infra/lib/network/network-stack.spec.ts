@@ -100,7 +100,7 @@ describe('NetworkStack', () => {
         template,
         findOnlyResourceId(template, 'AWS::EC2::Instance'),
       );
-      expect(natInstance.InstanceType).toBe('t4g.nano');
+      expect(natInstance.InstanceType).toBe('t4g.micro');
       expect(natInstance.SourceDestCheck).toBe(false);
       expect(natInstance.KeyName).toBeUndefined();
       expect(natInstance.NetworkInterfaces).toEqual([
@@ -185,6 +185,16 @@ describe('NetworkStack', () => {
           expect.objectContaining({ InstanceId: { Ref: natInstanceId } }),
         ]);
       }
+    });
+
+    it('replaces the NAT instance, rather than restarting it, when its type changes', () => {
+      const withAnotherType = synthesizeNetworkStack({
+        ...devConfig,
+        natInstanceType: 't4g.small',
+      });
+      expect(
+        findOnlyResourceId(withAnotherType, 'AWS::EC2::Instance'),
+      ).not.toBe(findOnlyResourceId(template, 'AWS::EC2::Instance'));
     });
 
     it('leaves isolated subnets without a default route', () => {

@@ -29,7 +29,7 @@ export class NetworkStack extends Stack {
     const { config } = props;
     const natProvider = createNatInstanceProvider(config);
     this.vpc = createVpc(this, config, natProvider);
-    hardenNatInstances(natProvider, config.vpcCidr);
+    hardenNatInstances(natProvider, config);
     this.securityGroups = createPerimeterSecurityGroups(
       this,
       this.vpc,

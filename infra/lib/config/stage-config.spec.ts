@@ -8,7 +8,7 @@ describe('resolveStageConfig', () => {
       availabilityZones: ['eu-north-1a', 'eu-north-1b'],
       vpcCidr: '10.0.0.0/16',
       natGatewayCount: 1,
-      natInstanceType: 't4g.nano',
+      natInstanceType: 't4g.micro',
       applicationPort: 3000,
       taskCpuUnits: 256,
       taskMemoryMiB: 512,

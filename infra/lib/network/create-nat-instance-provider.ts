@@ -1,4 +1,4 @@
-import { Aspects } from 'aws-cdk-lib';
+import { Aspects, Stack } from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import type { StageConfig } from '../config/stage-config.js';
@@ -20,10 +20,10 @@ export function createNatInstanceProvider(
 // only once the VPC attaches it.
 export function hardenNatInstances(
   provider: ec2.NatInstanceProviderV2,
-  vpcCidr: string,
+  config: StageConfig,
 ): void {
   provider.connections.allowFrom(
-    ec2.Peer.ipv4(vpcCidr),
+    ec2.Peer.ipv4(config.vpcCidr),
     ec2.Port.allTraffic(),
     'Traffic from the private subnets, to forward',
   );
@@ -37,7 +37,10 @@ export function hardenNatInstances(
     ec2.Port.tcp(HTTP_PORT),
     'Forwarded HTTP',
   );
-  provider.gatewayInstances.forEach(hardenNatInstance);
+  for (const natInstance of provider.gatewayInstances) {
+    hardenNatInstance(natInstance);
+    replaceOnTypeChange(natInstance, config.natInstanceType);
+  }
 }
 
 // Shell access through Session Manager, so no SSH and nothing inbound; and the
@@ -45,6 +48,17 @@ export function hardenNatInstances(
 function hardenNatInstance(natInstance: ec2.Instance): void {
   natInstance.role.addManagedPolicy(SESSION_MANAGER_ACCESS);
   Aspects.of(natInstance).add(new ec2.InstanceRequireImdsv2Aspect());
+}
+
+// Boot-time setup runs only on a fresh instance. A type change must therefore
+// replace the box, not stop and start it, so its identity carries the type.
+function replaceOnTypeChange(
+  natInstance: ec2.Instance,
+  instanceType: string,
+): void {
+  const resource = natInstance.node.defaultChild as ec2.CfnInstance;
+  const originalId = Stack.of(natInstance).getLogicalId(resource);
+  resource.overrideLogicalId(`${originalId}${instanceType.replace(/\W/g, '')}`);
 }
 
 const SESSION_MANAGER_ACCESS = iam.ManagedPolicy.fromAwsManagedPolicyName(

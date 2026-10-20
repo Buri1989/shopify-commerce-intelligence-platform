@@ -36,7 +36,9 @@ const stageConfigs: ReadonlyMap<string, StageConfig> = new Map([
       vpcCidr: '10.0.0.0/16',
       // The number of NAT devices. One is the development trade-off; one per zone is production.
       natGatewayCount: 1,
-      natInstanceType: 't4g.nano',
+      // The smallest size whose memory survives the package install at boot;
+      // on a nano the installer is killed and the NAT never gets its rule.
+      natInstanceType: 't4g.micro',
       applicationPort: 3000,
       // Fargate's smallest size: 256 units are a quarter of a vCPU.
       taskCpuUnits: 256,
