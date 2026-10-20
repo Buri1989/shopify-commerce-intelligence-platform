@@ -1,5 +1,6 @@
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import type { Construct } from 'constructs';
+import { HTTP_PORT, HTTPS_PORT } from './ports.js';
 
 export type PerimeterSecurityGroups = {
   readonly alb: ec2.SecurityGroup;
@@ -73,7 +74,5 @@ function createEmptySecurityGroup(
   });
 }
 
-const HTTP_PORT = 80;
-const HTTPS_PORT = 443;
 // Stays here until Task 2.1 needs it too; then it moves to a file named for the concept.
 const MYSQL_PORT = 3306;

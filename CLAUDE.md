@@ -20,7 +20,9 @@ alternatives and trade-offs.
 - Commit only when asked. Show the commit message first. Subject is an imperative
   sentence with no type prefix, matching the existing history.
 - After a task's code is done, answer its "questions to investigate" in
-  `docs/phase-N/task-N.M-questions.md`: short, professional, tied to what was built.
+  `docs/phase-N/task-N.M-questions.md`: short, professional, tied to what was built, and
+  ending with a "Why we picked what we picked" section that gives the reason for every
+  decision of the task.
 
 ## The gate
 
@@ -86,3 +88,21 @@ full reference. Apply them while writing, not after. The rules that come up most
   a resource's properties, `synthesize*` builds a template, `create*` builds a construct.
 - Deploys run from a developer machine with `AWS_PROFILE=ci-admin` until Task 1.5 moves them
   to GitHub Actions. Read `npm run diff` before `npm run deploy`.
+
+## Conventions from Task 1.3
+
+- The image tag is a deploy argument, never configuration: `-c imageTag=<sha>`. `bin/app.ts`
+  refuses to synthesize without it; the infra `synth` script passes `gate`. Deploy with
+  `npm run deploy -- --all -c imageTag=<sha>`; a running deploy locks `cdk.out`, so a second
+  CLI call during one needs `--output <dir>`.
+- Three stacks, `-network`, `-registry`, `-app`, wired with CDK's weak references (the
+  `cdk.json` flag). A stack that uses the network's security groups imports them with
+  `mutable: false` and creates listeners with `open: false`; the network stack owns every rule.
+- Test fixtures build their App with `createTestApp()` so they carry `cdk.json`'s feature
+  flags. `match*` returns an assertion matcher; `matchStackOutput` matches a cross-stack
+  reference.
+- The ECS service is created after the load balancer and attached to its target group.
+- The NAT instance's logical id carries its type (`replaceOnTypeChange`): boot-time setup runs
+  once, so a type change must replace the instance.
+- `configureForLoadBalancer` in the app keeps Node's keep-alive timeout above the balancer's
+  idle timeout; the two values are paired across the packages.

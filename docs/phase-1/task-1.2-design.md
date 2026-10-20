@@ -2,9 +2,8 @@
 
 **Date:** 2026-10-18
 **Branch:** `feat/task-1.2-aws-networking`
-**Status:** built through step 6 of §5 and gated; the account is bootstrapped; the first deploy
-(step 7) is deferred to the start of Task 1.3 **(Boris, 2026-10-18)** so the idle NAT Gateway is
-not paid for in between. The §6 checks that need the live account run then.
+**Status:** deployed on 2026-10-20 and verified against §6. Its NAT Gateway was replaced by a NAT
+instance in Task 1.3; see `task-1.3-design.md` §4.4.
 **Spec:** `docs/Boris-ing.md`, section 3, Task 1.2
 
 This document records what was decided for Task 1.2 and why. A builder should be able to implement

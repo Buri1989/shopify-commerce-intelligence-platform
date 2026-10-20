@@ -1,4 +1,4 @@
-import { Match, type Template } from 'aws-cdk-lib/assertions';
+import { Match, type Matcher, type Template } from 'aws-cdk-lib/assertions';
 
 export type ResourceProperties = Record<string, any>;
 
@@ -12,6 +12,21 @@ export function findOnlyResourceId(
   if (logicalIds.length !== 1) {
     throw new Error(
       `Expected exactly one ${resourceType}, found ${logicalIds.length}`,
+    );
+  }
+  return logicalIds[0];
+}
+
+export function findOnlyParameterId(
+  template: Template,
+  parameterType: string,
+): string {
+  const logicalIds = Object.keys(
+    template.findParameters('*', { Type: parameterType }),
+  );
+  if (logicalIds.length !== 1) {
+    throw new Error(
+      `Expected exactly one parameter of type ${parameterType}, found ${logicalIds.length}`,
     );
   }
   return logicalIds[0];
@@ -80,6 +95,32 @@ export function findOutboundRules(
   constructId: string,
 ): ResourceProperties[] {
   return findRules(template, constructId, 'Egress');
+}
+
+export function findPolicyStatementsOfRole(
+  template: Template,
+  roleId: string,
+): ResourceProperties[] {
+  const policies = template.findResources('AWS::IAM::Policy', {
+    Properties: { Roles: [{ Ref: roleId }] },
+  });
+  return Object.values(policies).flatMap(
+    (policy) => policy.Properties.PolicyDocument.Statement,
+  );
+}
+
+// The app stack reads the other stacks through CDK's weak references; this
+// matches one such reference by the producing stack and part of the output name.
+export function matchStackOutput(
+  stackName: string,
+  outputNamePattern: string,
+): Matcher {
+  return Match.objectLike({
+    'Fn::GetStackOutput': Match.objectLike({
+      StackName: stackName,
+      OutputName: Match.stringLikeRegexp(outputNamePattern),
+    }),
+  });
 }
 
 function findRouteTableIdOfSubnet(

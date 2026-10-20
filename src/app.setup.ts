@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import type { Logger as PinoLogger } from 'pino';
+import { configureForLoadBalancer } from './common/http/configure-for-load-balancer.js';
 import { APPLICATION_LOGGER } from './common/logging/logger.js';
 import { PinoLoggerAdapter } from './common/logging/pino-logger.adapter.js';
 import { requestIdMiddleware } from './common/logging/request-id.middleware.js';
@@ -14,4 +15,5 @@ export function configureApp(app: INestApplication): void {
   app.use(requestIdMiddleware);
   app.use(createRequestLoggerMiddleware(logger));
   app.enableShutdownHooks();
+  configureForLoadBalancer(app);
 }
