@@ -80,6 +80,11 @@ stage config is the whole upgrade. The instance is the right answer for hobby bu
 wrong one for a production story; the public-subnet pattern is valid for Fargate but gives up
 what this task exists to build.
 
+**Revisited in Task 1.3 (2026-10-20).** Once the cost model was laid out for an environment with
+no users, Boris chose the NAT instance for dev: CDK's own provider on Amazon Linux 2023, no
+community image, a `t4g.micro` after a `t4g.nano` proved too small to install its own rule. The
+managed gateway stays the production answer. The story is in `task-1.3-questions.md` §5.
+
 ## 6. Can an application running in a private subnet access Shopify APIs?
 
 Yes. The container resolves `*.myshopify.com` through the VPC's resolver, opens a TCP 443
@@ -153,6 +158,9 @@ runs per zone. Subnets, route tables, gateways and security groups themselves co
 the two-zone layout is free; only the redundant _things inside it_ cost. This stack as deployed
 for development costs about 38 USD a month idle; the production shape of the same stack about
 75 USD before any compute.
+
+**Revisited in Task 1.3.** With the NAT instance the development network costs about 10.5 USD a
+month instead of 38; the production shape is unchanged.
 
 ## Why we picked what we picked
 

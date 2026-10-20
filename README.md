@@ -93,7 +93,7 @@ dependencies and gate. Everything deploys to `eu-north-1` through an IAM Identit
 profile; there are no long-lived access keys.
 
 Requirements: AWS CLI v2 and a profile named `ci-admin` configured with `aws configure sso`
-(start URL and account come from the Identity Center admin).
+(start URL and account come from the Identity Center admin), and Docker for the image.
 
 ```bash
 cd infra && npm ci && cd ..
@@ -101,18 +101,55 @@ npm run infra:check                    # tests, type-check, lint, format, synth;
 aws sso login --profile ci-admin       # once per session, opens the browser
 ```
 
+Three stacks, deployed in this order:
+
+| Stack | Holds | Idle cost per month |
+|---|---|---|
+| `commerce-intelligence-dev-network` | VPC over two zones with public, private and isolated subnets, a `t4g.micro` NAT instance, the `alb`, `app` and `data` security groups, a reject-only flow log | about 10.5 USD |
+| `commerce-intelligence-dev-registry` | the ECR repository: immutable tags, scan on push, the last 20 images kept, retained on delete | cents |
+| `commerce-intelligence-dev-app` | ECS cluster, task definition and service, the load balancer with HTTPS, the certificate and the `api` DNS record, the log group | about 33 USD |
+
+About 44 USD a month in total, plus 0.50 USD for the hosted zone and 3 USD a year for the
+domain. Stage settings live in `infra/lib/config/stage-config.ts`. The API answers at
+`https://api.commerce-intelligence.click/health`.
+
+### Deploying, until Task 1.5 automates it
+
+The image is built from a clean commit and tagged with that commit's SHA; the deploy names the
+tag. From the repository root:
+
 ```bash
-cd infra
-AWS_PROFILE=ci-admin npx cdk bootstrap aws://<account-id>/eu-north-1   # once per account and region
-AWS_PROFILE=ci-admin npm run diff      # what a deploy would change
-AWS_PROFILE=ci-admin npm run deploy    # asks before creating IAM or security group changes
+SHA=$(git rev-parse HEAD)
+REPO=$(AWS_PROFILE=ci-admin aws cloudformation describe-stacks --region eu-north-1 --stack-name commerce-intelligence-dev-registry --query "Stacks[0].Outputs[?OutputKey=='RepositoryUri'].OutputValue" --output text)
+aws ecr get-login-password --region eu-north-1 --profile ci-admin | docker login --username AWS --password-stdin "${REPO%%/*}"
+docker build --platform linux/arm64 -t "$REPO:$SHA" .
+docker push "$REPO:$SHA"
 ```
 
-The `commerce-intelligence-dev-network` stack holds the VPC (two zones, public, private and
-isolated subnets, one NAT Gateway, an S3 gateway endpoint), the `alb`, `app` and `data`
-security groups, and a flow log of rejected traffic. While deployed it costs roughly 38 USD a
-month, almost all of it the NAT Gateway. Stage settings live in `infra/lib/config/stage-config.ts`;
-`natGatewayCount: 2` is the production value.
+```bash
+cd infra
+AWS_PROFILE=ci-admin npm run diff -- -c imageTag=$SHA            # what a deploy would change, all stacks
+AWS_PROFILE=ci-admin npm run deploy -- --all -c imageTag=$SHA    # asks before IAM or security group changes
+```
+
+A rollback is the same deploy with an older tag. The first ever deploy goes network and
+registry first, then the push, then the app stack. A running deploy locks `cdk.out`; a second
+CLI call during one needs `--output <dir>`.
+
+The app keeps idle connections open for 65 seconds because the load balancer keeps them for
+60; the two values live in `src/common/http/configure-for-load-balancer.ts` and
+`infra/lib/app/create-load-balancer.ts` and move together.
+
+### Tearing down
+
+```bash
+cd infra
+AWS_PROFILE=ci-admin npm run destroy -- commerce-intelligence-dev-app -c imageTag=gate
+AWS_PROFILE=ci-admin npm run destroy -- commerce-intelligence-dev-network -c imageTag=gate   # for a long pause
+```
+
+The registry stack is retained by design and costs cents; the hosted zone stays until deleted
+by hand. Bringing everything back is the deploy above.
 
 ## Layout
 
@@ -124,16 +161,19 @@ src/
     errors/          mappers from thrown values to one error response, and the resolver
     filters/         the global exception filter
     validation/      zod validation pipe
+    http/            keep-alive and proxy settings for life behind the load balancer
   health/            /health and /ready
   app.setup.ts       configureApp: logger, edge middleware, shutdown hooks
   main.ts
 test/                e2e specs and the shared app-boot helper
 infra/
-  bin/app.ts         CDK entry point: stage config → NetworkStack
-  lib/config/        stage settings and the project name
-  lib/network/       the VPC, security groups, flow log, outputs, and the stack
+  bin/app.ts         CDK entry point: stage config and image tag → the three stacks
+  lib/config/        stage settings, the project name, the image tag resolver
+  lib/network/       the VPC, NAT instance, security groups, flow log, outputs, and the stack
+  lib/registry/      the ECR repository and its stack
+  lib/app/           cluster, task definition, service, load balancer, certificate, record, outputs, and the stack
   lib/project-tags.ts
-  test/              template queries and stack fixtures used by the specs
+  test/              template queries, the test App, and stack fixtures used by the specs
 docs/                the assignment, per-task design and questions docs
 ```
 
@@ -143,3 +183,4 @@ docs/                the assignment, per-task design and questions docs
 - `docs/phase-1/task-1.1-design.md`: decisions, alternatives and trade-offs
 - `docs/phase-1/task-1.1-questions.md`: answers to the task's questions
 - `docs/phase-1/task-1.2-design.md` and `task-1.2-questions.md`: AWS networking
+- `docs/phase-1/task-1.3-design.md` and `task-1.3-questions.md`: compute and deployment

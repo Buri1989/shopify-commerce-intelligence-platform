@@ -2,7 +2,9 @@
 
 **Date:** 2026-10-20
 **Branch:** `feat/task-1.3-compute-and-deployment`
-**Status:** decided in chat and checked against a scratch synthesis; not built.
+**Status:** built, deployed and verified on 2026-10-20. Two things changed on the way and are
+marked **(after build)** or **(after deploy)** below: the test fixtures (§4.13) and the NAT instance
+size with how a size change is applied (§4.4).
 **Spec:** `docs/Boris-ing.md`, section 3, Task 1.3
 
 This document records what was decided for Task 1.3 and why. A builder should be able to implement
@@ -71,7 +73,7 @@ Lambda and EKS.
 | Account, region, profile | As in Task 1.2: `905543051584`, `eu-north-1`, `AWS_PROFILE=ci-admin`, no access keys |
 | Network | `commerce-intelligence-dev-network` deployed and verified on 2026-10-20 |
 | Domain | `commerce-intelligence.click`, registered through Route 53 by Boris on 2026-10-20, one year, auto-renew off **(Boris)**. The hosted zone is created by the registration; its id goes into the stage config |
-| Budget | 50 USD/month. Expected cost after this task: about 41 USD/month (§4.16) |
+| Budget | 50 USD/month. Expected cost after this task: about 44 USD/month (§4.16) |
 | Architecture | Containers are ARM64 **(Boris)**. The Mac that builds them until Task 1.5 is ARM; the GitHub repository is private, so the 1.5 pipeline builds ARM under emulation |
 | CDK | `aws-cdk-lib` 2.273.0, CLI 2.1145.0, the `cdk.json` feature flags from Task 1.2 |
 | Process | Same as 1.2: TDD, every file shown before it is written, decisions one at a time |
@@ -147,7 +149,7 @@ created with `open: false`. The network stack owns every rule; the app stack onl
 ### 4.4 The NAT: an instance instead of the managed gateway
 
 **(Boris)** after the cost model was laid out. The managed gateway and its address cost about
-37 USD a month in an environment with no users; a `t4g.nano` NAT instance costs about 7.5. The
+37 USD a month in an environment with no users; a `t4g.micro` NAT instance costs about 10.5. The
 app cannot tell the difference: the private route tables point `0.0.0.0/0` at the instance, which
 rewrites the source address and forwards, exactly as the gateway did. What changes is the failure
 story, documented in the questions doc: the instance is one virtual machine with thin bandwidth,
@@ -159,7 +161,7 @@ Built with CDK's `NatProvider.instanceV2`. Settings, all verified in the scratch
 
 | Setting | Value | Why |
 |---|---|---|
-| Instance type | `t4g.nano` from the stage config | the smallest ARM instance; the baseline bandwidth covers dev traffic |
+| Instance type | `t4g.micro` from the stage config | the smallest ARM instance whose memory survives the boot-time package install; see the deploy note below |
 | Image | Amazon Linux 2023, ARM | resolved through the public SSM parameter `/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-6.1-arm64` at deploy time: no context lookup, no `cdk.context.json`, the same rule as §4.2 of Task 1.2 |
 | Public IP | `associatePublicIpAddress: true` | the 1.2 public subnets do not assign one on launch; a NAT needs one. An ordinary public IP, not an Elastic IP: nothing depends on it being stable |
 | Source/destination check | off | set by the provider; required to forward traffic that is not addressed to the instance |
@@ -180,6 +182,15 @@ interrupted for the minutes between the two; nothing runs in the private subnets
 Not asserted anywhere: that NTP from the instance works through the 443/80 egress. The Amazon
 Time Sync address is link-local and is expected to bypass security group rules; if the instance
 clock drifts, a UDP 123 egress rule is the fix. **(my call)**
+
+**(after deploy, Boris: micro)** The design said `t4g.nano`. The first app deploy hung with its
+tasks unable to reach ECR; the instance's boot log showed the package install killed for lack of
+memory. Amazon Linux 2023 ships neither `iptables` nor `nftables`, its package manager needs more
+than the nano's 418 MB, so the masquerade rule was never written. A `t4g.micro` installs it. The
+second lesson: CloudFormation applies an instance type change by stopping and starting the
+instance, and boot-time setup runs only on a fresh one, so the fix alone would not have reached the
+box. The provider therefore appends the type to the instance's logical id (`replaceOnTypeChange`):
+a type change replaces the instance. Both are pinned in `network-stack.spec.ts`.
 
 ### 4.5 The container
 
@@ -293,7 +304,7 @@ The e2e spec boots through `createTestApp()` and asserts the three values on the
 Added to `StageConfig` and the `dev` entry:
 
 ```ts
-readonly natInstanceType: string;      // 't4g.nano'
+readonly natInstanceType: string;      // 't4g.micro'
 readonly taskCpuUnits: number;         // 256, Fargate CPU units: a quarter of a vCPU
 readonly taskMemoryMiB: number;        // 512
 readonly desiredCount: number;         // 1
@@ -313,29 +324,36 @@ message of §4.2 when it is missing.
 infra/
   bin/app.ts                          resolves stage and image tag; the three stacks in order
   lib/config/image-tag.ts             resolveImageTag(node)
-  lib/network/create-nat-instance-provider.ts   createNatInstanceProvider(config); hardenNatInstances(provider, vpcCidr)
+  lib/network/create-nat-instance-provider.ts   createNatInstanceProvider(config); hardenNatInstances(provider, config); replaceOnTypeChange
   lib/registry/registry-stack.ts      RegistryStack, registryStackId(stage); exposes repository
   lib/registry/create-repository.ts   createRepository(scope, stage)
-  lib/app/app-stack.ts                AppStack, appStackId(stage); exposes cluster, service, loadBalancer
+  lib/app/app-stack.ts                AppStack, appStackId(stage); exposes cluster, service, loadBalancer; importImmutable for the 1.2 groups
+  lib/app/create-cluster.ts           createCluster(scope, vpc, config)
   lib/app/create-app-log-group.ts     createAppLogGroup(scope, config)
   lib/app/create-task-definition.ts   createTaskDefinition(scope, { repository, imageTag, logGroup, config }); the two roles
   lib/app/create-service.ts           createService(scope, { cluster, taskDefinition, vpc, securityGroup, config })
-  lib/app/create-load-balancer.ts     createLoadBalancer(scope, { vpc, securityGroup, certificate, service, config })
+  lib/app/create-load-balancer.ts     createLoadBalancer(scope, { vpc, securityGroup, certificate, config }): { loadBalancer, targetGroup }
   lib/app/create-api-endpoint.ts      createApiCertificate(scope, zone, config); createApiRecord(scope, zone, loadBalancer, config)
   lib/app/create-app-outputs.ts       CfnOutputs: API URL, load balancer DNS name, cluster and service names, log group
+  test/create-test-app.ts             createTestApp(): an App carrying cdk.json's context
   test/synthesize-app-stack.ts        synthesizeAppStack(config, imageTag): the three stacks in one App, returns the app Template
   test/synthesize-registry-stack.ts   synthesizeRegistryStack(config)
 ```
 
-Specs sit next to each file, `beforeAll` and `it` blocks only, helpers in `test/`, the verbs from
-Task 1.2. Stack ids `commerce-intelligence-<stage>-registry` and `-app`; the three project tags on
+The service is created after the balancer and attached to its target group, because ECS rejects a
+health check grace period on a service without one **(after build)**. Specs sit next to each file,
+`beforeAll` and `it` blocks only, helpers in `test/`, the verbs from Task 1.2. Stack ids `commerce-intelligence-<stage>-registry` and `-app`; the three project tags on
 every stack; the cluster, repository and log group carry readable names because humans type them
 into the CLI; everything else keeps CDK names. **(my call)**
 
 ### 4.13 Tests
 
 All written red first; synthesized against a fixed fake account and the dev config with a fixed
-tag; no credentials. Cross-stack tokens are matched with `Match.anyValue()`.
+tag; no credentials. Every fixture builds its App with `createTestApp()`, which loads `cdk.json`'s
+context, so the templates carry the same feature flags as `cdk synth` **(after build)**: without it
+the cross-stack references came out as classic exports and IAM actions in another order, and tests
+passed on templates that were not the deployed ones. Cross-stack references are matched with
+`matchStackOutput()`.
 
 **`lib/config/image-tag.spec.ts`**: a tag in context is returned; a missing or empty tag throws
 with a message naming `-c imageTag`.
@@ -402,7 +420,9 @@ with `AWS_PROFILE=ci-admin`, from the repository root unless noted.
    the pause is long; the registry stack is retained by design and costs cents.
 
 The gate's `synth` script becomes `cdk synth -c imageTag=gate` so `npm run infra:check` needs no
-argument; `diff` and `deploy` take the tag explicitly, as above.
+argument; `diff` and `deploy` take the tag explicitly, as above. `cdk diff` with no stack name covers
+all stacks; `cdk deploy --all` deploys them. A running deploy locks `cdk.out`, so a second CLI call
+during one needs `--output <dir>`.
 
 ### 4.15 Documentation and repo hygiene
 
@@ -422,13 +442,13 @@ Stockholm prices read from the AWS Price List API on 2026-10-20, 730 hours a mon
 
 | Item | Per month, USD |
 |---|---|
-| NAT instance `t4g.nano`, its public IP, 8 GB disk | 7.5 |
+| NAT instance `t4g.micro`, its public IP, 8 GB disk | 10.5 |
 | Application Load Balancer | 17.5 |
 | Load balancer public IPs, two zones | 7.3 |
 | Fargate task 0.25 vCPU, 0.5 GB, ARM, on-demand | 7.9 |
 | Hosted zone | 0.5 |
 | Image storage, logs, certificate, data processed | under 1 |
-| **Total** | **about 41** |
+| **Total** | **about 44** |
 
 Down from about 70 with the managed gateway. The domain is 3 USD a year, already paid.
 
@@ -455,7 +475,7 @@ One piece at a time. Each piece: show the failing test in chat → approval → 
 5. The app change of §4.10 with its e2e spec; the root gate; a new image built and pushed from the
    resulting commit.
 6. `cdk diff` of the app stack read in chat; deploy; the §6 checks; a second deploy with a new
-   tag watched with a request loop; one rollback to the previous tag; a final `cdk diff --all`
+   tag watched with a request loop; one rollback to the previous tag; a final `cdk diff`
    clean.
 7. README, CLAUDE.md, the 1.2 doc updates, then `task-1.3-questions.md`.
 
@@ -473,13 +493,13 @@ Commits happen when the author says so.
   with 256/512, ARM64, the three environment variables and the `awslogs` non-blocking options; the
   log group `/commerce-intelligence/dev/app` receiving JSON lines from the container, including
   the Nest startup lines; the repository with the pushed SHA tags, immutable, scanned.
-- The network: no NAT Gateway, no Elastic IP; one running `t4g.nano` with a public IP, source
+- The network: no NAT Gateway, no Elastic IP; one running `t4g.micro` with a public IP, source
   check off, IMDSv2 required; both private default routes target it; its group has the three
   rules of §4.4 and nothing else. The reject flow log shows no rejected traffic between the load
   balancer and the task.
 - A deploy with a new tag replaces the task with zero failed requests in a one-second `curl` loop
   during the rollover; a deploy of the previous tag does the same in reverse.
-- `cdk diff --all -c imageTag=<deployed sha>` reports no differences.
+- `cdk diff -c imageTag=<deployed sha>` reports no differences.
 - Cost Explorer or the billing page shows the daily rate in line with §4.16 once a full day has
   passed.
 - `docs/phase-1/task-1.3-questions.md` exists.
