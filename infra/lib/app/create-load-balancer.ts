@@ -33,6 +33,9 @@ export function createLoadBalancer(
       vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
       deletionProtection: false,
       dropInvalidHeaderFields: true,
+      // CDK's default, written out because the app's keep-alive timeout in
+      // src/common/http/configure-for-load-balancer.ts must stay above it.
+      idleTimeout: Duration.seconds(60),
     },
   );
   const targetGroup = createTargetGroup(scope, vpc, config);
