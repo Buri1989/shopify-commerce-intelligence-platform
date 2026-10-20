@@ -2,7 +2,10 @@ import { Match, type Template } from 'aws-cdk-lib/assertions';
 import { synthesizeNetworkStack } from '../../test/synthesize-network-stack.js';
 import {
   findDefaultRoutes,
+  findInboundRules,
+  findOnlyParameterId,
   findOnlyResourceId,
+  findOutboundRules,
   findRouteTableIdsOfTier,
   findSubnetIdsOfTier,
   readResourceProperties,
@@ -89,29 +92,97 @@ describe('NetworkStack', () => {
       }
     });
 
-    it('creates one NAT Gateway with an Elastic IP in a public subnet', () => {
-      template.resourceCountIs('AWS::EC2::NatGateway', 1);
-      template.resourceCountIs('AWS::EC2::EIP', 1);
-      const natGateway = readResourceProperties(
+    it('creates one NAT instance of the configured type in a public subnet with a public IP', () => {
+      template.resourceCountIs('AWS::EC2::Instance', 1);
+      template.resourceCountIs('AWS::EC2::NatGateway', 0);
+      template.resourceCountIs('AWS::EC2::EIP', 0);
+      const natInstance = readResourceProperties(
         template,
-        findOnlyResourceId(template, 'AWS::EC2::NatGateway'),
+        findOnlyResourceId(template, 'AWS::EC2::Instance'),
       );
-      expect(natGateway.AllocationId).toEqual({
-        'Fn::GetAtt': [
-          findOnlyResourceId(template, 'AWS::EC2::EIP'),
-          'AllocationId',
-        ],
-      });
+      expect(natInstance.InstanceType).toBe('t4g.nano');
+      expect(natInstance.SourceDestCheck).toBe(false);
+      expect(natInstance.KeyName).toBeUndefined();
+      expect(natInstance.NetworkInterfaces).toEqual([
+        expect.objectContaining({ AssociatePublicIpAddress: true }),
+      ]);
       expect(findSubnetIdsOfTier(template, 'Public')).toContain(
-        natGateway.SubnetId.Ref,
+        natInstance.NetworkInterfaces[0].SubnetId.Ref,
       );
     });
 
-    it('routes private subnets to the NAT Gateway', () => {
-      const natGatewayId = findOnlyResourceId(template, 'AWS::EC2::NatGateway');
+    it('boots the NAT instance from the current Amazon Linux 2023 ARM image without a lookup', () => {
+      const amiParameterId = findOnlyParameterId(
+        template,
+        'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>',
+      );
+      template.hasParameter(amiParameterId, {
+        Default: Match.stringLikeRegexp(
+          '^/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-.*-arm64$',
+        ),
+      });
+      template.hasResourceProperties('AWS::EC2::Instance', {
+        ImageId: { Ref: amiParameterId },
+        UserData: {
+          'Fn::Base64': Match.stringLikeRegexp(
+            'ip_forward=1[\\s\\S]*MASQUERADE',
+          ),
+        },
+      });
+    });
+
+    it('lets the NAT instance forward traffic from the VPC only, and only HTTPS and HTTP out', () => {
+      expect(findInboundRules(template, 'VpcNatSecurityGroup')).toEqual([
+        expect.objectContaining({ IpProtocol: '-1', CidrIp: '10.0.0.0/16' }),
+      ]);
+      expect(findOutboundRules(template, 'VpcNatSecurityGroup')).toEqual([
+        expect.objectContaining({
+          IpProtocol: 'tcp',
+          FromPort: 443,
+          ToPort: 443,
+          CidrIp: '0.0.0.0/0',
+        }),
+        expect.objectContaining({
+          IpProtocol: 'tcp',
+          FromPort: 80,
+          ToPort: 80,
+          CidrIp: '0.0.0.0/0',
+        }),
+      ]);
+    });
+
+    it('requires IMDSv2 on the NAT instance and allows Session Manager instead of SSH', () => {
+      template.resourceCountIs('AWS::EC2::LaunchTemplate', 1);
+      template.hasResourceProperties('AWS::EC2::LaunchTemplate', {
+        LaunchTemplateData: { MetadataOptions: { HttpTokens: 'required' } },
+      });
+      template.hasResourceProperties('AWS::EC2::Instance', {
+        LaunchTemplate: Match.objectLike({ Version: Match.anyValue() }),
+      });
+      template.hasResourceProperties('AWS::IAM::Role', {
+        AssumeRolePolicyDocument: {
+          Statement: [
+            Match.objectLike({ Principal: { Service: 'ec2.amazonaws.com' } }),
+          ],
+        },
+        ManagedPolicyArns: [
+          {
+            'Fn::Join': [
+              '',
+              Match.arrayWith([
+                ':iam::aws:policy/AmazonSSMManagedInstanceCore',
+              ]),
+            ],
+          },
+        ],
+      });
+    });
+
+    it('routes private subnets to the NAT instance', () => {
+      const natInstanceId = findOnlyResourceId(template, 'AWS::EC2::Instance');
       for (const routeTableId of findRouteTableIdsOfTier(template, 'Private')) {
         expect(findDefaultRoutes(template, routeTableId)).toEqual([
-          expect.objectContaining({ NatGatewayId: { Ref: natGatewayId } }),
+          expect.objectContaining({ InstanceId: { Ref: natInstanceId } }),
         ]);
       }
     });
@@ -150,29 +221,28 @@ describe('NetworkStack', () => {
     });
   });
 
-  describe('with one NAT Gateway per zone', () => {
-    it('routes each private subnet to the gateway in its own zone', () => {
+  describe('with one NAT instance per zone', () => {
+    it('routes each private subnet to the instance in its own zone', () => {
       const template = synthesizeNetworkStack({
         ...devConfig,
         natGatewayCount: 2,
       });
-      template.resourceCountIs('AWS::EC2::NatGateway', 2);
-      template.resourceCountIs('AWS::EC2::EIP', 2);
-      const natGatewayIdsRoutedTo = findRouteTableIdsOfTier(
+      template.resourceCountIs('AWS::EC2::Instance', 2);
+      const natInstanceIdsRoutedTo = findRouteTableIdsOfTier(
         template,
         'Private',
       ).map(
         (routeTableId) =>
-          findDefaultRoutes(template, routeTableId)[0].NatGatewayId.Ref,
+          findDefaultRoutes(template, routeTableId)[0].InstanceId.Ref,
       );
-      expect(new Set(natGatewayIdsRoutedTo).size).toBe(2);
+      expect(new Set(natInstanceIdsRoutedTo).size).toBe(2);
     });
   });
 
   describe('security groups', () => {
-    it('creates the three perimeter groups in the VPC', () => {
+    it('creates the three perimeter groups and the NAT group in the VPC', () => {
       const template = synthesizeNetworkStack(devConfig);
-      template.resourceCountIs('AWS::EC2::SecurityGroup', 3);
+      template.resourceCountIs('AWS::EC2::SecurityGroup', 4);
       template.allResourcesProperties('AWS::EC2::SecurityGroup', {
         VpcId: { Ref: findOnlyResourceId(template, 'AWS::EC2::VPC') },
       });

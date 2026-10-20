@@ -5,6 +5,10 @@ import { PROJECT_NAME } from '../config/project-name.js';
 import type { StageConfig } from '../config/stage-config.js';
 import { applyProjectTags } from '../project-tags.js';
 import { createRejectFlowLog } from './create-flow-log.js';
+import {
+  createNatInstanceProvider,
+  hardenNatInstances,
+} from './create-nat-instance-provider.js';
 import { createNetworkOutputs } from './create-network-outputs.js';
 import { createVpc } from './create-vpc.js';
 import {
@@ -23,7 +27,9 @@ export class NetworkStack extends Stack {
   constructor(scope: Construct, id: string, props: NetworkStackProps) {
     super(scope, id, { env: { region: props.config.region } });
     const { config } = props;
-    this.vpc = createVpc(this, config);
+    const natProvider = createNatInstanceProvider(config);
+    this.vpc = createVpc(this, config, natProvider);
+    hardenNatInstances(natProvider, config.vpcCidr);
     this.securityGroups = createPerimeterSecurityGroups(
       this,
       this.vpc,
@@ -31,7 +37,7 @@ export class NetworkStack extends Stack {
     );
     createRejectFlowLog(this, this.vpc, {
       stage: config.stage,
-      retentionDays: config.flowLogRetentionDays,
+      retentionDays: config.logRetentionDays,
     });
     createNetworkOutputs(this, this.vpc, this.securityGroups);
     applyProjectTags(this, config.stage);

@@ -294,7 +294,7 @@ Added to `StageConfig` and the `dev` entry:
 
 ```ts
 readonly natInstanceType: string;      // 't4g.nano'
-readonly taskCpu: number;              // 256
+readonly taskCpuUnits: number;         // 256, Fargate CPU units: a quarter of a vCPU
 readonly taskMemoryMiB: number;        // 512
 readonly desiredCount: number;         // 1
 readonly logRetentionDays: number;     // 14, renamed from flowLogRetentionDays
