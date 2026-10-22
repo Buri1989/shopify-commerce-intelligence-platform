@@ -10,6 +10,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "synth": "cdk synth -c imageTag=gate",
+    "drift": "cdk drift -c imageTag=gate",
     "diff": "cdk diff",
     "deploy": "cdk deploy",
     "destroy": "cdk destroy"

@@ -9,6 +9,7 @@ describe('resolveStageConfig', () => {
       vpcCidr: '10.0.0.0/16',
       natGatewayCount: 1,
       natInstanceType: 't4g.micro',
+      natInstanceAmiId: 'ami-04e0c7320ad3a3a48',
       applicationPort: 3000,
       taskCpuUnits: 256,
       taskMemoryMiB: 512,

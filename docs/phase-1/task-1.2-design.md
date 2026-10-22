@@ -64,7 +64,9 @@ once the code exists.
 - A security group with an "allow all outbound" rule, or an inbound rule from `0.0.0.0/0` on
   anything but the `alb` group's ports 80 and 443.
 - A database subnet with a route to the internet, in either direction.
-- An account id, access key or any credential in source.
+- An account id, access key or any credential in source. *(Revised in Task 1.4: the account id is
+  an identifier, not a credential. It may appear in documents, never in code or configuration;
+  see `task-1.4-design.md` §4.3.)*
 - A test suite that only snapshots the template. Tests name the resources and rules they expect.
 - Infrastructure code tangled with application code: the app image must not contain `infra/`, and
   the app must not import from it.

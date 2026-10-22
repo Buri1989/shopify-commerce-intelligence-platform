@@ -106,3 +106,22 @@ full reference. Apply them while writing, not after. The rules that come up most
   once, so a type change must replace the instance.
 - `configureForLoadBalancer` in the app keeps Node's keep-alive timeout above the balancer's
   idle timeout; the two values are paired across the packages.
+
+## Conventions from Task 1.4
+
+- Credentials never appear anywhere. Stack code, stage config and workflow files never name the
+  account; documents may. A secret is created by AWS and referenced by ARN, never a stage config
+  value or an environment literal.
+- The network and registry stacks carry `terminationProtection: true`; the app stack does not. A
+  planned destroy of a protected stack turns the flag off first (README, Tearing down).
+- The NAT image is pinned in the stage config as `natInstanceAmiId`. Moving to a newer image is its
+  own pull request. `cdk diff` is clean after every deploy and is read before every merge; the
+  review-and-apply procedure is in the README.
+- `npm run drift` in `infra/` before a planned infrastructure change and after console work.
+- A CDK validation finding is acknowledged on the construct with
+  `Validations.of(scope).acknowledge({ id, reason })`, never silenced globally; the network spec
+  asserts that no finding is left unacknowledged.
+- Fixtures: `create*Stack(app, config)` returns a stack, `synthesize*` returns its template,
+  `read*` reads from a synthesized assembly.
+- `docs/phase-1/architecture.md` is the living picture of the environment. A task that changes
+  what runs updates it and its "Last updated" line.

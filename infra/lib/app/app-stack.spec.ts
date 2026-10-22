@@ -1,4 +1,6 @@
 import { Match, type Template } from 'aws-cdk-lib/assertions';
+import { createAppStack } from '../../test/create-app-stack.js';
+import { createTestApp } from '../../test/create-test-app.js';
 import { synthesizeAppStack } from '../../test/synthesize-app-stack.js';
 import { findOnlyResourceId } from '../../test/template-queries.js';
 import { resolveStageConfig } from '../config/stage-config.js';
@@ -49,5 +51,14 @@ describe('AppStack', () => {
     template.hasOutput('LogGroupName', {
       Value: { Ref: findOnlyResourceId(template, 'AWS::Logs::LogGroup') },
     });
+  });
+
+  it('stays destroyable: termination protection is off', () => {
+    const stack = createAppStack(
+      createTestApp(),
+      resolveStageConfig('dev'),
+      'abc123',
+    );
+    expect(stack.terminationProtection).toBe(false);
   });
 });
