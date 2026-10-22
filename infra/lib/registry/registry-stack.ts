@@ -14,7 +14,12 @@ export class RegistryStack extends Stack {
   readonly repository: ecr.Repository;
 
   constructor(scope: Construct, id: string, props: RegistryStackProps) {
-    super(scope, id, { env: { region: props.config.region } });
+    super(scope, id, {
+      env: { region: props.config.region },
+      // The repository is retained under a fixed name, so a deleted stack cannot
+      // be recreated; its images are also the rollback targets.
+      terminationProtection: true,
+    });
     this.repository = createRepository(this, props.config.stage);
     new CfnOutput(this, 'RepositoryUri', {
       value: this.repository.repositoryUri,

@@ -1,4 +1,6 @@
 import { Match, type Template } from 'aws-cdk-lib/assertions';
+import { createRegistryStack } from '../../test/create-registry-stack.js';
+import { createTestApp } from '../../test/create-test-app.js';
 import { synthesizeRegistryStack } from '../../test/synthesize-registry-stack.js';
 import { findOnlyResourceId } from '../../test/template-queries.js';
 import { resolveStageConfig } from '../config/stage-config.js';
@@ -31,5 +33,13 @@ describe('RegistryStack', () => {
         ],
       },
     });
+  });
+
+  it('refuses deletion until termination protection is turned off', () => {
+    const stack = createRegistryStack(
+      createTestApp(),
+      resolveStageConfig('dev'),
+    );
+    expect(stack.terminationProtection).toBe(true);
   });
 });

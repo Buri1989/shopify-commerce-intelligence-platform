@@ -5,6 +5,7 @@ export type StageConfig = {
   readonly vpcCidr: string;
   readonly natGatewayCount: number;
   readonly natInstanceType: string;
+  readonly natInstanceAmiId: string;
   readonly applicationPort: number;
   readonly taskCpuUnits: number;
   readonly taskMemoryMiB: number;
@@ -39,6 +40,9 @@ const stageConfigs: ReadonlyMap<string, StageConfig> = new Map([
       // The smallest size whose memory survives the package install at boot;
       // on a nano the installer is killed and the NAT never gets its rule.
       natInstanceType: 't4g.micro',
+      // Amazon Linux 2023 ARM, 2023.12.20261016.0. Pinned so a deploy never replaces
+      // the NAT by surprise; a newer image is a deliberate change (1.4 design §4.9).
+      natInstanceAmiId: 'ami-04e0c7320ad3a3a48',
       applicationPort: 3000,
       // Fargate's smallest size: 256 units are a quarter of a vCPU.
       taskCpuUnits: 256,

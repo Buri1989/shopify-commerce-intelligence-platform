@@ -25,7 +25,12 @@ export class NetworkStack extends Stack {
   readonly securityGroups: PerimeterSecurityGroups;
 
   constructor(scope: Construct, id: string, props: NetworkStackProps) {
-    super(scope, id, { env: { region: props.config.region } });
+    super(scope, id, {
+      env: { region: props.config.region },
+      // The app stack depends on this one through weak references, which
+      // CloudFormation does not enforce; deleting it must take two steps.
+      terminationProtection: true,
+    });
     const { config } = props;
     const natProvider = createNatInstanceProvider(config);
     this.vpc = createVpc(this, config, natProvider);

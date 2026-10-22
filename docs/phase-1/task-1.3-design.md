@@ -174,6 +174,12 @@ Built with CDK's `NatProvider.instanceV2`. Settings, all verified in the scratch
 | Metadata service | IMDSv2 required | `InstanceRequireImdsv2Aspect` on the stack adds a launch template with `HttpTokens: required` |
 | Count | `natGatewayCount` from the stage config, unchanged at 1 | the name stays: it is the number of NAT devices; 2 places one per zone |
 
+**(after Task 1.4)** The image is no longer resolved at deploy time. Amazon publishes a new one
+about weekly, so "latest" meant the NAT was replaced by whichever deploy came next and `cdk diff`
+went stale within a week. The id is pinned in the stage config as `natInstanceAmiId` and moved
+deliberately; see `task-1.4-design.md` §4.9. The §4.13 test of the SSM parameter became a test of
+the pinned id.
+
 What the deploy does: removes the NAT Gateway and its Elastic IP, creates the instance, its
 launch template, security group, role and instance profile, and repoints the two private default
 routes. Subnets, the other security groups and the endpoint are untouched. Outbound traffic is

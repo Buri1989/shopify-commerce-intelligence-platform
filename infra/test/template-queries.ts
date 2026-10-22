@@ -17,21 +17,6 @@ export function findOnlyResourceId(
   return logicalIds[0];
 }
 
-export function findOnlyParameterId(
-  template: Template,
-  parameterType: string,
-): string {
-  const logicalIds = Object.keys(
-    template.findParameters('*', { Type: parameterType }),
-  );
-  if (logicalIds.length !== 1) {
-    throw new Error(
-      `Expected exactly one parameter of type ${parameterType}, found ${logicalIds.length}`,
-    );
-  }
-  return logicalIds[0];
-}
-
 export function readResourceProperties(
   template: Template,
   logicalId: string,

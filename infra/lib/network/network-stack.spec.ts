@@ -1,9 +1,11 @@
 import { Match, type Template } from 'aws-cdk-lib/assertions';
+import { createNetworkStack } from '../../test/create-network-stack.js';
+import { createTestApp } from '../../test/create-test-app.js';
+import { readValidationViolations } from '../../test/read-validation-violations.js';
 import { synthesizeNetworkStack } from '../../test/synthesize-network-stack.js';
 import {
   findDefaultRoutes,
   findInboundRules,
-  findOnlyParameterId,
   findOnlyResourceId,
   findOutboundRules,
   findRouteTableIdsOfTier,
@@ -111,24 +113,20 @@ describe('NetworkStack', () => {
       );
     });
 
-    it('boots the NAT instance from the current Amazon Linux 2023 ARM image without a lookup', () => {
-      const amiParameterId = findOnlyParameterId(
-        template,
-        'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>',
-      );
-      template.hasParameter(amiParameterId, {
-        Default: Match.stringLikeRegexp(
-          '^/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-.*-arm64$',
-        ),
-      });
+    it('boots the NAT instance from the image pinned in the stage config, set up to forward', () => {
       template.hasResourceProperties('AWS::EC2::Instance', {
-        ImageId: { Ref: amiParameterId },
+        ImageId: devConfig.natInstanceAmiId,
         UserData: {
           'Fn::Base64': Match.stringLikeRegexp(
             'ip_forward=1[\\s\\S]*MASQUERADE',
           ),
         },
       });
+      expect(
+        template.findParameters('*', {
+          Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>',
+        }),
+      ).toEqual({});
     });
 
     it('lets the NAT instance forward traffic from the VPC only, and only HTTPS and HTTP out', () => {
@@ -300,6 +298,21 @@ describe('NetworkStack', () => {
       template.hasOutput('DataSecurityGroupId', {
         Value: securityGroupIdAttribute(template, 'DataSecurityGroup'),
       });
+    });
+  });
+
+  describe('deletion', () => {
+    it('refuses deletion until termination protection is turned off', () => {
+      const stack = createNetworkStack(createTestApp(), devConfig);
+      expect(stack.terminationProtection).toBe(true);
+    });
+  });
+
+  describe('validation', () => {
+    it('leaves no validation finding unacknowledged', () => {
+      const app = createTestApp();
+      createNetworkStack(app, devConfig);
+      expect(readValidationViolations(app)).toEqual([]);
     });
   });
 });
