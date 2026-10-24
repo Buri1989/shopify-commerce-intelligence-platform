@@ -407,6 +407,10 @@ and registry stacks.
 
 ### 4.14 Deploying before CI exists
 
+**Replaced on 2026-10-24 by Task 1.5's workflows.** A merge to `main` deploys and the Actions button
+rolls back. The sequence below stays in the README only for the first deploy into an empty account
+and for recovery when the pipeline itself is broken.
+
 The manual procedure, written into the README and replaced by workflows in Task 1.5. All commands
 with `AWS_PROFILE=ci-admin`, from the repository root unless noted.
 

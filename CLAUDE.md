@@ -27,11 +27,11 @@ alternatives and trade-offs.
 ## The gate
 
 ```bash
-npm test && npm run test:e2e && npx tsc --noEmit && npm run lint && npm run format
+npm test && npm run test:e2e && npm run typecheck && npm run lint && npm run format
 ```
 
 All of it passes before a step is called done. `npm test` does not type-check; always
-run `tsc` separately.
+run `typecheck` separately. CI runs `format:check` and `infra:format:check`, which write nothing.
 
 The infrastructure package has its own gate, run from the root:
 
@@ -125,3 +125,26 @@ full reference. Apply them while writing, not after. The rules that come up most
   `read*` reads from a synthesized assembly.
 - `docs/phase-1/architecture.md` is the living picture of the environment. A task that changes
   what runs updates it and its "Last updated" line.
+
+## Conventions from Task 1.5
+
+- Three workflows in `.github/workflows/`: `checks.yml` (reusable: the app and infra gates),
+  `pull-request.yml` and `deploy.yml`. Steps run the npm scripts, one script per step, so a failure
+  is one named line in the run. The only raw commands are `docker build`, the health curl and the
+  summary.
+- Every action is pinned to a 40-character commit SHA with the version as a trailing comment.
+  `.github/workflows/workflows.spec.ts` enforces that and the other rules (permissions, triggers,
+  concurrency, `.nvmrc`, time limits) and runs with the root `npm test`. A workflow change starts
+  with a rule, red.
+- Permissions: `contents: read` at the top of every workflow. A job that logs in to AWS declares
+  `contents: read` and `id-token: write` itself, because a job-level block replaces the top one.
+  `pull-requests: write` only on the `diff` job.
+- The roles reach the workflows as the repository variables `AWS_PULL_REQUEST_ROLE_ARN`,
+  `AWS_DEPLOY_ROLE_ARN` and `AWS_REGION`, never as literals. The delivery stack that creates them
+  is deployed by hand only the first time; after that every merge deploys all four stacks.
+- The repository is named in the stage config by its immutable identity, `owner@id/name@id`, as
+  GitHub writes it in its tokens. Trust rules use `StringEquals`, never a wildcard.
+- `cdk diff` in CI runs `--method template --fail-on never` through the lookup role: information for
+  the reviewer, not a check. Nothing in the pipeline is cancelled: `cancel-in-progress: false`
+  everywhere.
+- A deploy from a laptop is for the first deploy into an empty account and for recovery only.

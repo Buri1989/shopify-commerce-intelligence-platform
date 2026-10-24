@@ -68,8 +68,8 @@ the technology decision and records the rollback demonstration.
 |---|---|
 | Account, region, profile | As before: `eu-north-1`, `AWS_PROFILE=ci-admin` for the hand steps, no access keys |
 | Environment | Three stacks deployed, `cdk diff` clean on 2026-10-22; the service runs image tag `f62256b…`; `main` is `c5173f9`, for which no image exists yet |
-| Repository | `Buri1989/shopify-commerce-intelligence-platform`, private; Boris is the only committer |
-| GitHub plan | Unknown at design time. Decides whether branch protection is available (§4.8) |
+| Repository | `Buri1989/shopify-commerce-intelligence-platform`, public since 2026-10-24 (§4.8); Boris is the only committer |
+| GitHub plan | Free. Branch protection on a private repository needs a paid plan, which decided §4.8 |
 | Runners | GitHub-hosted `ubuntu-latest`, Intel. ARM images are built under emulation (1.3 §3) |
 | CDK | `aws-cdk-lib` 2.273.0, CLI 2.1145.0, unchanged in this task. Bootstrap qualifier `hnb659fds` |
 | Decided earlier, not reopened | ARM images tagged with the git SHA; `cdk deploy --all -c imageTag=<sha>`; `--require-approval never`; the pull request carries the diff through a read-only role; role ARNs reach workflows as GitHub variables (1.3 §4.2, 1.4 §4.3, §4.4) |
@@ -361,12 +361,14 @@ and `docker` checks to pass, forbid direct pushes. Not required: the branch bein
 time, so `main` rarely moves under an open branch; a review approval, because a single committer
 cannot approve their own pull request.
 
-**Open:** GitHub offers branch protection on private repositories only on paid plans. The plan is
-checked with `gh` when Boris says so. If it is not available, the choices are to make the repository
-public, which would also give free ARM runners and reopen the 1.4 statement that documents may name
-the account because the repository is private; to take GitHub Pro; or to document the rule without
-enforcing it, relying on the fact that only Boris can push. That decision is his and is recorded
-here when taken.
+**Decided 2026-10-24 (Boris, public).** The protection endpoint answered "Upgrade to GitHub Pro or
+make this repository public": the account is on the Free plan. Paying was ruled out. Rejected:
+staying private with the rule written down and a local pre-push hook, which guards one laptop and
+not the repository. The repository was made public and the protection set the same day: the four
+checks required, `strict` off, `enforce_admins` on so the rule binds the one committer too, no
+review approval. Consequences: Actions minutes are no longer metered and ARM runners are available
+for a later pull request; the account id in the documents is now public, which 1.4 §4.3 accepted
+as an identifier rather than a credential, and that line carries a dated note.
 
 ### 4.9 Housekeeping
 

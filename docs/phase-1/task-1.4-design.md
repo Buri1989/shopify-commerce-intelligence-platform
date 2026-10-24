@@ -156,7 +156,10 @@ id is an identifier, not a secret: shared with care, not hidden. The rule is res
   bind the repository to one account, such as the role ARN Task 1.5 needs, arrive from outside: a
   GitHub Actions variable, a CDK context value, a CLI profile.
 - **Documents may name the deployment.** Design docs, questions docs and the README describe this
-  environment, and the repository is private. The 1.3 doc stays as it is.
+  environment, and the repository is private. The 1.3 doc stays as it is. *2026-10-24: the
+  repository is public (1.5 §4.8). The account id stays in the documents: AWS calls it an
+  identifier to share with care, not a secret, nothing in the repository is a credential by the
+  first rule, and the trust rules name the repository by ids a stranger cannot reuse.*
 - **Resource identifiers are configuration.** The hosted zone id, the zone name, the API host name
   and the region live in the stage config because they are facts about the deployment, not
   credentials; anyone with access to the account can read them.
@@ -225,6 +228,10 @@ Rejected **(b)**: the deployer pastes a local diff for good. It is the interim s
 only until the workflow exists, because a pasted diff is whatever the deployer ran, whenever they
 ran it. Rejected **(c)**: gate only, no pre-merge diff. It removes the one human look at IAM and
 security-group changes that CDK's prompt used to force, instead of moving it.
+
+**2026-10-24, Task 1.5:** the workflows exist. The pull request workflow posts the diff through the
+read-only role as one comment that follows the latest commit, and the deploy workflow runs on
+merge. The *(until 1.5)* steps are gone from the README; the procedure there is the final form.
 
 ### 4.5 The architecture and networking diagram
 
