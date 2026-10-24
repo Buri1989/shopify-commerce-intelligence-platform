@@ -4,8 +4,7 @@ Task 1.5 has no question list of its own; it has two workflows to build, a rollb
 and the general rules' seven questions for every major technology decision. The decision here is
 GitHub Actions with OIDC: the workflows run on GitHub's machines and prove who they are to AWS with
 a short-lived token instead of a stored key. Answers reflect what was built and run on 2026-10-24.
-The alternatives in full are in `task-1.5-design.md`. The rollback demonstration is recorded in §5
-after the merge, in the follow-up pull request.
+The alternatives in full are in `task-1.5-design.md`. The rollback demonstration is recorded in §5.
 
 ## 1. GitHub Actions with OIDC, the seven questions
 
@@ -108,15 +107,35 @@ a red health check points at DNS, the certificate or the balancer rather than th
 
 ## 5. Rollback
 
-Recorded after the merge, in the follow-up pull request: the two runs, their links and timings.
+Demonstrated on 2026-10-24, after the merge of pull request #6, as three runs of the deploy
+workflow on `main`:
+
+| Run                                                                                             | Started by                  | Image tag                    | Jobs                                                           | Start to healthy |
+| ----------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------- | -------------------------------------------------------------- | ---------------- |
+| [1](https://github.com/Buri1989/shopify-commerce-intelligence-platform/actions/runs/40095264280) | the merge, commit `c2050b2` | `c2050b2…`, the new image    | checks 25 s and 1 m 01 s, build 2 m 42 s cold, deploy 4 m 54 s | 7 m 43 s         |
+| [2](https://github.com/Buri1989/shopify-commerce-intelligence-platform/actions/runs/40097034175) | the button                  | `f62256b…`, Task 1.4's image | checks and build skipped, deploy 3 m 49 s                      | 3 m 55 s         |
+| [3](https://github.com/Buri1989/shopify-commerce-intelligence-platform/actions/runs/40098292231) | the button                  | `c2050b2…` again             | checks and build skipped, deploy 4 m 27 s                      | 4 m 32 s         |
+
+After every run `/health` and `/ready` answered 200 at the first attempt, from inside the run and
+from a laptop, and after runs 2 and 3 `aws ecs describe-services` showed the service's primary
+deployment on a task definition whose image carried the expected tag. In runs 2 and 3 the three
+infrastructure stacks reported "no changes"; the app stack created a task definition and the
+service rolled over in between 2 m 43 s and 3 m 23 s, which is nearly all of the time. `cdk diff`
+against `c2050b2…` was clean after run 1 and again after run 3. A rollback therefore costs about
+four minutes from the button to a healthy old image and builds nothing: the first step checks that
+the tag exists in the registry, CloudFormation does the rest. The run page titles a button run
+"Rollback to image" and a merge "Deploy of commit", so the deploy history reads at a glance.
 
 ## 6. Cost
 
-Nothing on the AWS side: the provider, the roles and their calls are free. On GitHub, a private
-repository counts Linux minutes per job. Measured on the first runs: a pull request push about
-two minutes of wall time on four machines, about six billed minutes; a deploy is estimated at
-about 22 minutes with the layer cache warm and 28 cold; a rollback about five. The Free plan's
-2,000 minutes a month hold ten pull request pushes and five merges a week with room to spare.
+Nothing on the AWS side: the provider, the roles and their calls are free. On GitHub, standard
+runners on a public repository are not metered, and the repository has been public since
+2026-10-24 (design §4.8), so the pipeline costs nothing. Measured anyway, as the price of going
+private again, where Linux minutes are billed per job and rounded up: a pull request push about
+two minutes of wall time on four machines, about six billed minutes; the merge deploy 7 m 43 s of
+wall time and about 11 billed minutes with a cold layer cache; a rollback about four minutes of
+both. The Free plan's 2,000 minutes a month would hold ten pull request pushes and five merges a
+week with room to spare.
 
 ## Why we picked what we picked
 
@@ -140,7 +159,7 @@ Short reasons for each Task 1.5 decision. The alternatives and trade-offs in ful
 - **`--method template --fail-on never`.** The lookup role is all a pull request may assume, and
   the diff is for the reviewer, not a gate.
 - **Checks before build before deploy; the button skips to deploy.** A broken merge fails in
-  minute three with nothing touched; a rollback takes five minutes with an image that was already
+  minute three with nothing touched; a rollback took four minutes with an image that was already
   checked when it first shipped.
 - **The layer cache on the ARM build.** The npm install layer is the slow part under emulation;
   a stale cache means a slower build, never a different one.

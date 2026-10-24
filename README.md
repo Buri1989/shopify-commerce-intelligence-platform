@@ -4,7 +4,7 @@ Multi-tenant Shopify app backend: NestJS 12, TypeScript, MySQL, AWS. Built phase
 phase as a backend engineering training assignment. The assignment is in
 `docs/Boris-ing.md`; each task has a design doc and a questions doc under `docs/phase-N/`.
 
-**Status:** Phase 1. Tasks 1.1 to 1.4 complete and deployed; Task 1.5 (CI/CD) in progress.
+**Status:** Phase 1 complete. Tasks 1.1 to 1.5 built, deployed and verified; Phase 2 (MySQL, database architecture and migrations) next.
 
 ## Requirements
 
@@ -137,6 +137,28 @@ the run page: commit, tag, each stack's result, the two responses, links to Clou
 log group. GitHub emails the committer when a run on `main` fails. Deploys queue behind each other;
 nothing is ever cancelled.
 
+**When a deploy fails**, three places, in this order:
+
+- [The deploy runs](https://github.com/Buri1989/shopify-commerce-intelligence-platform/actions/workflows/deploy.yml):
+  the red step is the one named line that broke, and the summary on the run page keeps each
+  stack's result and the two health answers.
+- [CloudFormation](https://eu-north-1.console.aws.amazon.com/cloudformation/home?region=eu-north-1#/stacks?filteringText=commerce-intelligence-dev):
+  a stack's events name the resource and the reason. The app stack in `UPDATE_ROLLBACK_COMPLETE`
+  means the new tasks never passed the health check, the circuit breaker rolled the service back
+  and the previous image is still serving.
+  [ECS](https://eu-north-1.console.aws.amazon.com/ecs/v2/clusters/commerce-intelligence-dev/services?region=eu-north-1)
+  keeps the service's events, which say why a task stopped.
+- [The app log group](https://eu-north-1.console.aws.amazon.com/cloudwatch/home?region=eu-north-1#logsV2:log-groups/log-group/$252Fcommerce-intelligence$252Fdev$252Fapp),
+  `/commerce-intelligence/dev/app`: what the task printed, one JSON line per event, the request
+  id on every line of a request.
+
+The console links assume the browser is signed in to the project account. The same log from a
+terminal, live:
+
+```bash
+AWS_PROFILE=ci-admin aws logs tail /commerce-intelligence/dev/app --region eu-north-1 --since 30m --follow
+```
+
 **Rollback.** Actions → Deploy → Run workflow, with the tag of the last good image, a commit SHA
 already in the repository; or from a terminal:
 
@@ -145,7 +167,7 @@ gh workflow run deploy.yml -f imageTag=<sha>
 ```
 
 The run checks that the image exists, skips the checks and the build, deploys that tag and checks
-the API; about five minutes. The fix is a normal pull request afterwards.
+the API; four to five minutes. The fix is a normal pull request afterwards.
 
 **Logging in.** Every run proves who it is to AWS with GitHub's OIDC token and receives credentials
 that expire within the hour. The delivery stack holds the provider and two roles. The pull request
