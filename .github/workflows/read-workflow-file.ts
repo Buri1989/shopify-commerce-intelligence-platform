@@ -9,6 +9,8 @@ export type WorkflowStep = {
 
 export type WorkflowJob = {
   readonly uses?: string;
+  readonly if?: string;
+  readonly needs?: readonly string[];
   readonly permissions?: Readonly<Record<string, string>>;
   readonly 'timeout-minutes'?: number;
   readonly steps?: readonly WorkflowStep[];
@@ -17,6 +19,7 @@ export type WorkflowJob = {
 export type Workflow = {
   readonly on: Readonly<Record<string, unknown>>;
   readonly permissions?: Readonly<Record<string, string>>;
+  readonly env?: Readonly<Record<string, string>>;
   readonly concurrency?: {
     readonly group: string;
     readonly 'cancel-in-progress': boolean;
