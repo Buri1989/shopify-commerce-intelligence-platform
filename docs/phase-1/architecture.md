@@ -1,10 +1,10 @@
 # Architecture
 
-The Commerce Intelligence environment as deployed: stage `dev`, region `eu-north-1`, three
+The Commerce Intelligence environment as deployed: stage `dev`, region `eu-north-1`, four
 CloudFormation stacks defined with AWS CDK in `infra/`. This file describes what runs; the design
 doc of each task records why it is shaped that way. It is updated as the environment grows.
 
-**Last updated:** 2026-10-22, Task 1.4. Task 1.5 adds the pipeline; Task 2.1 adds the database.
+**Last updated:** 2026-10-24, Task 1.5. Task 2.1 adds the database.
 
 ## 1. The network
 
@@ -46,12 +46,12 @@ balancer and the NAT instance ask for theirs. Rejected traffic is logged to
 
 Security groups are the whole list of allowed traffic between tiers. None allows all outbound.
 
-| Group  | Inbound                              | Outbound                                            |
-| ------ | ------------------------------------ | --------------------------------------------------- |
-| `alb`  | TCP 80 and 443 from anywhere         | TCP 3000 to `app`                                   |
-| `app`  | TCP 3000 from `alb`                  | TCP 443 to anywhere; TCP 3306 to `data`             |
-| `data` | TCP 3306 from `app`                  | none                                                |
-| NAT    | all traffic from `10.0.0.0/16`       | TCP 80 and 443 to anywhere                          |
+| Group  | Inbound                        | Outbound                                |
+| ------ | ------------------------------ | --------------------------------------- |
+| `alb`  | TCP 80 and 443 from anywhere   | TCP 3000 to `app`                       |
+| `app`  | TCP 3000 from `alb`            | TCP 443 to anywhere; TCP 3306 to `data` |
+| `data` | TCP 3306 from `app`            | none                                    |
+| NAT    | all traffic from `10.0.0.0/16` | TCP 80 and 443 to anywhere              |
 
 ## 2. The request path
 
@@ -83,46 +83,71 @@ because the load balancer keeps them for 60 s.
 
 ## 3. The delivery path
 
-Done by hand until Task 1.5. The image is built from a clean commit and tagged with its SHA; the
-deploy names the tag; a rollback is the same deploy with an older tag.
+Two GitHub Actions workflows and two IAM roles. A pull request runs the checks and shows `cdk diff`;
+a merge to `main` builds, pushes, deploys and checks the API. Every run logs in with GitHub's OIDC
+token; no access key exists. The image is tagged with the commit SHA; a rollback is the same deploy
+with an older tag, started from the Actions tab.
 
 ```mermaid
 flowchart LR
-    dev["Developer machine<br/>AWS_PROFILE=ci-admin, SSO, no access keys"]
-    build["docker build --platform linux/arm64<br/>tag = git commit SHA"]
-    ecr[("ECR commerce-intelligence-dev<br/>immutable tags, scan on push, last 20 kept")]
-    cdk["cdk deploy --all -c imageTag=SHA"]
-    cfn["CloudFormation"]
+    subgraph github["GitHub Actions"]
+        pr["pull-request.yml<br/>checks / app, checks / infra, docker, diff"]
+        merge["deploy.yml on a merge to main<br/>checks, build, deploy"]
+        button["deploy.yml from the button<br/>imageTag = an older SHA, straight to deploy"]
+    end
+    subgraph delivery["delivery stack"]
+        oidc["OIDC provider<br/>token.actions.githubusercontent.com, audience sts.amazonaws.com"]
+        prrole["pull request role<br/>sub = repo:…:pull_request<br/>may assume the bootstrap lookup role"]
+        deployrole["deploy role<br/>sub = repo:…:ref:refs/heads/main<br/>may assume the bootstrap deploy, file-publishing and lookup roles; pull and push on ECR"]
+    end
+    ecr[("ECR commerce-intelligence-dev<br/>immutable tags, image = commit SHA")]
+    cfn["CloudFormation<br/>through the bootstrap roles"]
     net["network stack"]
     reg["registry stack"]
+    del["delivery stack"]
     app["app stack<br/>task definition names repository:SHA"]
-    dev --> build --> ecr
-    dev --> cdk --> cfn
+    api(("api.commerce-intelligence.click<br/>/health and /ready"))
+    pr -->|"OIDC token"| oidc
+    merge -->|"OIDC token"| oidc
+    button -->|"OIDC token"| oidc
+    oidc --> prrole
+    oidc --> deployrole
+    prrole -->|"cdk diff --method template, posted as one comment"| cfn
+    deployrole -->|"buildx linux/arm64, push"| ecr
+    deployrole -->|"cdk deploy --all --require-approval never -c imageTag=SHA"| cfn
     cfn --> net
     cfn --> reg
+    cfn --> del
     cfn --> app
     app -.->|"pulls"| ecr
+    merge -.->|"curl from outside, six tries"| api
+    button -.->|"curl from outside, six tries"| api
 ```
 
-Task 1.5 replaces the developer machine with two GitHub Actions workflows and two IAM roles
-assumed through OIDC: a read-only role for pull requests (gate, Docker build, `cdk diff` posted on
-the pull request) and a deploy role for `main` (build, push, deploy, wait for health, report).
+The trust rules name the repository by its immutable identity (`owner@id/name@id`) with
+`StringEquals`, so neither a recycled name nor another branch can assume a role. What a run may do
+directly is narrow; what a template deployed on `main` may do is whatever CloudFormation's execution
+role allows, which is administrator by default. The guards are the ones in the README's procedure:
+only `main` gets the deploy role, `main` changes through a reviewed pull request, and the pull
+request shows the diff with IAM changes marked.
 
 ## 4. The stacks
 
-| Stack                                | Holds                                                                                                                   | Depended on by           | Termination protection                    |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------- |
-| `commerce-intelligence-dev-network`  | VPC, subnets, route tables, Internet Gateway, NAT instance, S3 endpoint, the four security groups, the reject flow log   | the app stack, weakly    | on                                        |
-| `commerce-intelligence-dev-registry` | the ECR repository, retained on delete                                                                                  | the app stack, weakly    | on                                        |
-| `commerce-intelligence-dev-app`      | cluster, log group, task definition and its two roles, service, load balancer, listeners, target group, certificate, DNS record | nothing                  | off: the stack removed on purpose for a pause |
+| Stack                                | Holds                                                                                                                           | Depended on by                                 | Termination protection                        |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------- |
+| `commerce-intelligence-dev-network`  | VPC, subnets, route tables, Internet Gateway, NAT instance, S3 endpoint, the four security groups, the reject flow log          | the app stack, weakly                          | on                                            |
+| `commerce-intelligence-dev-registry` | the ECR repository, retained on delete                                                                                          | the app and delivery stacks, weakly            | on                                            |
+| `commerce-intelligence-dev-delivery` | the GitHub OIDC provider, the pull request role, the deploy role                                                                | nothing; GitHub reads its outputs as variables | on                                            |
+| `commerce-intelligence-dev-app`      | cluster, log group, task definition and its two roles, service, load balancer, listeners, target group, certificate, DNS record | nothing                                        | off: the stack removed on purpose for a pause |
 
-The app stack reads the other two through weak references: CloudFormation does not enforce the
-dependency, the diff review and termination protection do. The whole environment costs about
-44 USD a month; the table is in the README.
+The app and delivery stacks read the others through weak references: CloudFormation does not
+enforce the dependency, the diff review and termination protection do. The whole environment costs
+about 44 USD a month; the pipeline adds nothing on the AWS side; the table is in the README.
 
 ## Where the reasons are
 
 - `task-1.2-design.md`: the network, the tiers, the security groups.
 - `task-1.3-design.md`: compute, the load balancer, the certificate, the NAT instance.
 - `task-1.4-design.md`: state, termination protection, the pinned image, how changes are reviewed.
+- `task-1.5-design.md`: the pipeline, the two roles, the diff comment, the rollback.
 - `README.md`: the procedures: deploy, review and apply, tear-down.

@@ -14,6 +14,7 @@ export type StageConfig = {
   readonly hostedZoneId: string;
   readonly hostedZoneName: string;
   readonly apiDomainName: string;
+  readonly githubRepositoryIdentity: string;
 };
 
 export function resolveStageConfig(stageName: string): StageConfig {
@@ -54,6 +55,10 @@ const stageConfigs: ReadonlyMap<string, StageConfig> = new Map([
       hostedZoneId: 'Z03536663804YHQ8G2EL1',
       hostedZoneName: 'commerce-intelligence.click',
       apiDomainName: 'api.commerce-intelligence.click',
+      // login@id/name@id, as GitHub writes it in its tokens; printed by
+      // gh api repos/Buri1989/shopify-commerce-intelligence-platform/actions/oidc/customization/sub
+      githubRepositoryIdentity:
+        'Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906',
     },
   ],
 ]);

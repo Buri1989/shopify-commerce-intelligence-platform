@@ -1,0 +1,85 @@
+name: Pull request
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pull-request-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+
+  diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    env:
+      IMAGE_TAG: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: infra/package-lock.json
+      - run: npm ci
+        working-directory: infra
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_PULL_REQUEST_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+          role-session-name: pull-request-${{ github.run_id }}
+      - name: Diff the stacks against the account with the image tag main runs
+        working-directory: infra
+        env:
+          CDK_DISABLE_VERSION_CHECK: '1'
+        run: |
+          set -o pipefail
+          npm run -s diff -- --method template --fail-on never --no-notices -c imageTag="$IMAGE_TAG" 2>&1 | tee "$RUNNER_TEMP/cdk-diff.txt"
+      - name: Post the diff as the pull request's one diff comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { readFileSync } = require('node:fs');
+            const marker = '<!-- cdk-diff -->';
+            const limit = 60000;
+            const diff = readFileSync(`${process.env.RUNNER_TEMP}/cdk-diff.txt`, 'utf8').trim();
+            const shown = diff.length > limit
+              ? `${diff.slice(0, limit)}\n… cut at ${limit} characters; the full diff is in the run log.`
+              : diff;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              marker,
+              '### cdk diff',
+              `Commit ${context.payload.pull_request.head.sha}, image tag \`${process.env.IMAGE_TAG}\` (the head of main). [Run log](${runUrl})`,
+              '```',
+              shown,
+              '```',
+            ].join('\n');
+            const { data: comments } = await github.rest.issues.listComments({
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: docker build .

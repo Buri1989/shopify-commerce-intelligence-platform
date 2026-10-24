@@ -24,6 +24,13 @@ export function readResourceProperties(
   return template.toJSON().Resources[logicalId].Properties;
 }
 
+export function readResourceTypes(template: Template): string[] {
+  const resources: Record<string, { Type: string }> =
+    template.toJSON().Resources;
+  const types = Object.values(resources).map((resource) => resource.Type);
+  return [...new Set(types)].sort();
+}
+
 export function findSubnetIdsOfTier(
   template: Template,
   tier: string,
@@ -92,6 +99,20 @@ export function findPolicyStatementsOfRole(
   return Object.values(policies).flatMap(
     (policy) => policy.Properties.PolicyDocument.Statement,
   );
+}
+
+export function findRoleId(template: Template, roleName: string): string {
+  const logicalIds = Object.keys(
+    template.findResources('AWS::IAM::Role', {
+      Properties: { RoleName: roleName },
+    }),
+  );
+  if (logicalIds.length !== 1) {
+    throw new Error(
+      `Expected exactly one role named ${roleName}, found ${logicalIds.length}`,
+    );
+  }
+  return logicalIds[0];
 }
 
 // The app stack reads the other stacks through CDK's weak references; this
