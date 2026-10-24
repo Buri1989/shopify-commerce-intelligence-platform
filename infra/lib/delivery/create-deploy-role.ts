@@ -21,7 +21,7 @@ export function createDeployRole(
     roleName: `${PROJECT_NAME}-${config.stage}-github-deploy`,
     assumedBy: createGithubTrust(
       provider,
-      `repo:${config.githubRepository}:ref:refs/heads/main`,
+      `repo:${config.githubRepositoryIdentity}:ref:refs/heads/main`,
     ),
   });
   // No image-publishing role: the image is pushed through the grant below, not as a CDK asset.

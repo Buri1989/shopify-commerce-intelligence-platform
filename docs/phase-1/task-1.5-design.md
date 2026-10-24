@@ -120,9 +120,9 @@ import it rather than create it; that is noted here and not built. The construct
 `OidcProviderNative`, a plain `AWS::IAM::OIDCProvider` resource; the older `OpenIdConnectProvider`
 deploys a Lambda to fetch certificate thumbprints, which AWS no longer needs for GitHub.
 
-The repository name is a fact of the deployment, so it joins the stage config as
-`githubRepository: 'Buri1989/shopify-commerce-intelligence-platform'` (1.4 §4.3: resource
-identifiers are configuration; code names no account).
+The repository is a fact of the deployment, so it joins the stage config as
+`githubRepositoryIdentity`, the repository exactly as GitHub writes it in its tokens (§4.3; 1.4
+§4.3: resource identifiers are configuration; code names no account).
 
 The stack reads the repository ARN from the registry stack to grant push, a weak reference like
 the others. It depends on nothing else and nothing depends on it. `bin/app.ts` creates it after the
@@ -141,8 +141,18 @@ does today; the administrator nature of CloudFormation's execution role document
 
 | Role | Trust: accept a GitHub token only when | May do |
 |---|---|---|
-| `commerce-intelligence-dev-github-pull-request` | `aud` is `sts.amazonaws.com` and `sub` is exactly `repo:Buri1989/shopify-commerce-intelligence-platform:pull_request` | `sts:AssumeRole` on the bootstrap **lookup** role. Nothing else |
-| `commerce-intelligence-dev-github-deploy` | `aud` is `sts.amazonaws.com` and `sub` is exactly `repo:Buri1989/shopify-commerce-intelligence-platform:ref:refs/heads/main` | `sts:AssumeRole` on the bootstrap **deploy**, **file-publishing** and **lookup** roles; pull and push on the project repository (`grantPullPush`: buildx reads existing manifests while pushing) |
+| `commerce-intelligence-dev-github-pull-request` | `aud` is `sts.amazonaws.com` and `sub` is exactly `repo:Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906:pull_request` | `sts:AssumeRole` on the bootstrap **lookup** role. Nothing else |
+| `commerce-intelligence-dev-github-deploy` | `aud` is `sts.amazonaws.com` and `sub` is exactly `repo:Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906:ref:refs/heads/main` | `sts:AssumeRole` on the bootstrap **deploy**, **file-publishing** and **lookup** roles; pull and push on the project repository (`grantPullPush`: buildx reads existing manifests while pushing) |
+
+**Changed 2026-10-24, after the first live run.** The pull request run was refused with
+`Not authorized to perform sts:AssumeRoleWithWebIdentity`. CloudTrail showed the subject GitHub
+sent: `repo:Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906:pull_request`.
+Repositories created after July 15, 2026 use GitHub's immutable subject format,
+`repo:OWNER@OWNER-ID/REPO@REPO-ID:…`, so a recycled name can never match. The stage config holds
+that identity as `githubRepositoryIdentity`; the trust rules stay `StringEquals`. Rejected: a
+wildcard over the ids (gives the new format's protection away) and switching the repository back
+to the old format (a hidden setting outside git, undone by any rename or transfer). A rename
+changes the subject and is a deliberate pull request, like the NAT image.
 
 The bootstrap role ARNs are built from the stack's account token, the region and the default
 qualifier: `arn:<partition>:iam::<account>:role/cdk-hnb659fds-<kind>-role-<account>-<region>`. No
@@ -297,7 +307,7 @@ outside the pipeline the spec requires, needing a login at the worst moment.
 
 | Spec | Behaviour |
 |---|---|
-| `stage-config.spec.ts` | `dev` names the GitHub repository |
+| `stage-config.spec.ts` | `dev` names the GitHub repository identity |
 | `create-github-oidc-provider.spec.ts` | one `AWS::IAM::OIDCProvider` with GitHub's URL and the `sts.amazonaws.com` audience |
 | `create-pull-request-role.spec.ts` | trusts the provider for `sts:AssumeRoleWithWebIdentity` with `StringEquals` on the audience and the exact `pull_request` subject; one policy statement: `sts:AssumeRole` on the lookup role ARN built from the account token |
 | `create-deploy-role.spec.ts` | the exact `ref:refs/heads/main` subject; `sts:AssumeRole` on the deploy, file-publishing and lookup role ARNs and no other role; pull and push on the repository and `GetAuthorizationToken`; nothing else |
@@ -420,7 +430,7 @@ show the implementation in chat → approval → write it → run it green → r
 
 1. Branch (done); this document.
 2. The three scripts of §4.9; the README checks section. Root gate green.
-3. `githubRepository` in the stage config, spec first.
+3. `githubRepositoryIdentity` in the stage config, spec first.
 4. The delivery stack (§4.2, §4.3): fixtures, the provider, the two roles with their specs, the
    stack, `bin/app.ts`. `npm run infra:check` green. `npm run diff -- -c imageTag=<deployed sha>`
    read in chat: one new stack, the other three unchanged.

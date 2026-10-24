@@ -36,7 +36,7 @@ describe('createDeployRole', () => {
             StringEquals: {
               'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
               'token.actions.githubusercontent.com:sub':
-                'repo:Buri1989/shopify-commerce-intelligence-platform:ref:refs/heads/main',
+                'repo:Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906:ref:refs/heads/main',
             },
           },
         },

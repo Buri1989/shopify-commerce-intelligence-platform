@@ -19,7 +19,7 @@ export function createPullRequestRole(
     roleName: `${PROJECT_NAME}-${config.stage}-github-pull-request`,
     assumedBy: createGithubTrust(
       provider,
-      `repo:${config.githubRepository}:pull_request`,
+      `repo:${config.githubRepositoryIdentity}:pull_request`,
     ),
   });
   // cdk diff --method template needs the lookup role only.
