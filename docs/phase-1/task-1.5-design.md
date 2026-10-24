@@ -2,7 +2,9 @@
 
 **Date:** 2026-10-24
 **Branch:** `feat/task-1.5-github-actions-ci-cd`
-**Status:** designed, not built.
+**Status:** built, deployed and verified on 2026-10-24. Two decisions changed during the build and
+carry the date where they changed: the token subject (§4.3, after the first live run) and the
+repository's visibility (§4.8).
 **Spec:** `docs/Boris-ing.md`, section 3, Task 1.5 (lines 238–265); deliverables and acceptance
 criteria at lines 267–285.
 
