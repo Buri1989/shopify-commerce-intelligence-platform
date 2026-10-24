@@ -20,5 +20,6 @@
     "strictPropertyInitialization": false,
     "types": ["vitest/globals", "node"]
   },
+  "include": ["**/*", ".github/**/*"],
   "exclude": ["node_modules", "dist", "infra"]
 }

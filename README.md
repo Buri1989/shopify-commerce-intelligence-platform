@@ -32,11 +32,12 @@ Then `curl localhost:3000/health` and `curl localhost:3000/ready`.
 ## Checks
 
 ```bash
-npm test             # unit tests
-npm run test:e2e     # e2e tests over HTTP
+npm test                   # unit tests
+npm run test:e2e           # e2e tests over HTTP
+npm run typecheck          # tsc --noEmit; npm test does not type-check
 npm run lint
-npx tsc --noEmit
-npm run format
+npm run format             # writes
+npm run format:check       # what CI runs: fails on an unformatted file, writes nothing
 ```
 
 ## Configuration
@@ -98,6 +99,7 @@ Requirements: AWS CLI v2 and a profile named `ci-admin` configured with `aws con
 ```bash
 cd infra && npm ci && cd ..
 npm run infra:check                    # tests, type-check, lint, format, synth; no AWS session needed
+npm run infra:format:check             # what CI runs instead of infra:format
 aws sso login --profile ci-admin       # once per session, opens the browser
 ```
 

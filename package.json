@@ -9,13 +9,15 @@
   "scripts": {
     "build": "nest build",
     "deploy": "nest deploy",
-    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \".github/**/*.{ts,yml}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \".github/**/*.{ts,yml}\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "dev": "nest start --watch | pino-pretty",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
-    "lint": "oxlint --type-aware src/ test/",
+    "lint": "oxlint --type-aware src/ test/ .github/",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
@@ -26,6 +28,7 @@
     "infra:synth": "npm --prefix infra run synth",
     "infra:lint": "oxlint --type-aware infra/bin infra/lib infra/test",
     "infra:format": "prettier --write \"infra/**/*.ts\"",
+    "infra:format:check": "prettier --check \"infra/**/*.ts\"",
     "infra:check": "npm run infra:test && npm run infra:typecheck && npm run infra:lint && npm run infra:format && npm run infra:synth"
   },
   "dependencies": {
@@ -56,7 +59,8 @@
     "supertest": "^7.0.0",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.2",
+    "yaml": "^2.9.1"
   },
   "engines": {
     "node": "24.x"
