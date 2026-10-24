@@ -2,6 +2,10 @@ import { App } from 'aws-cdk-lib';
 import { AppStack, appStackId } from '../lib/app/app-stack.js';
 import { resolveImageTag } from '../lib/config/image-tag.js';
 import { resolveStageConfig } from '../lib/config/stage-config.js';
+import {
+  DeliveryStack,
+  deliveryStackId,
+} from '../lib/delivery/delivery-stack.js';
 import { NetworkStack, networkStackId } from '../lib/network/network-stack.js';
 import {
   RegistryStack,
@@ -18,6 +22,10 @@ const imageTag = resolveImageTag(app.node);
 const network = new NetworkStack(app, networkStackId(config.stage), { config });
 const registry = new RegistryStack(app, registryStackId(config.stage), {
   config,
+});
+new DeliveryStack(app, deliveryStackId(config.stage), {
+  config,
+  repository: registry.repository,
 });
 new AppStack(app, appStackId(config.stage), {
   config,

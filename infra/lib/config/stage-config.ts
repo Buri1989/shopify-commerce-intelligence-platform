@@ -14,6 +14,7 @@ export type StageConfig = {
   readonly hostedZoneId: string;
   readonly hostedZoneName: string;
   readonly apiDomainName: string;
+  readonly githubRepository: string;
 };
 
 export function resolveStageConfig(stageName: string): StageConfig {
@@ -54,6 +55,10 @@ const stageConfigs: ReadonlyMap<string, StageConfig> = new Map([
       hostedZoneId: 'Z03536663804YHQ8G2EL1',
       hostedZoneName: 'commerce-intelligence.click',
       apiDomainName: 'api.commerce-intelligence.click',
+      // The one repository whose GitHub Actions runs may log in to this account. The
+      // delivery stack's trust rules name it exactly, so a token from any other
+      // repository is refused (1.5 design §4.3).
+      githubRepository: 'Buri1989/shopify-commerce-intelligence-platform',
     },
   ],
 ]);

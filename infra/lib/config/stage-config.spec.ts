@@ -18,6 +18,7 @@ describe('resolveStageConfig', () => {
       hostedZoneId: 'Z03536663804YHQ8G2EL1',
       hostedZoneName: 'commerce-intelligence.click',
       apiDomainName: 'api.commerce-intelligence.click',
+      githubRepository: 'Buri1989/shopify-commerce-intelligence-platform',
     });
   });
 
