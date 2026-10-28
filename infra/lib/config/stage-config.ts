@@ -11,6 +11,11 @@ export type StageConfig = {
   readonly taskMemoryMiB: number;
   readonly desiredCount: number;
   readonly logRetentionDays: number;
+  readonly databaseInstanceType: string;
+  readonly databaseAllocatedStorageGiB: number;
+  readonly databaseBackupRetentionDays: number;
+  readonly databaseMultiAz: boolean;
+  readonly databasePoolSize: number;
   readonly hostedZoneId: string;
   readonly hostedZoneName: string;
   readonly apiDomainName: string;
@@ -51,6 +56,19 @@ const stageConfigs: ReadonlyMap<string, StageConfig> = new Map([
       // One task is the cost choice; two spread across the zones.
       desiredCount: 1,
       logRetentionDays: 14,
+      // The smallest RDS size, written like natInstanceType; CDK adds the db. prefix.
+      // Moving up is a setting change and a short restart (2.1 design §4.2).
+      databaseInstanceType: 't4g.micro',
+      // gp3's minimum.
+      databaseAllocatedStorageGiB: 20,
+      // A bad migration deployed on Friday is still recoverable on Monday (2.1 design §4.6).
+      databaseBackupRetentionDays: 7,
+      // One zone is the development trade-off, like the NAT; production turns on
+      // the standby copy with this one value.
+      databaseMultiAz: false,
+      // Connections per task: enough for a quarter of a vCPU, well under the
+      // micro's limit of roughly 60 to 80 across all tasks (2.1 design §4.7).
+      databasePoolSize: 10,
       // Created by the domain registration on 2026-10-20; read from the account, never looked up.
       hostedZoneId: 'Z03536663804YHQ8G2EL1',
       hostedZoneName: 'commerce-intelligence.click',

@@ -1,11 +1,13 @@
 import { Stack } from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
+import type * as ec2 from 'aws-cdk-lib/aws-ec2';
 import type * as ecr from 'aws-cdk-lib/aws-ecr';
 import type * as ecs from 'aws-cdk-lib/aws-ecs';
 import type * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import type { Construct } from 'constructs';
 import { PROJECT_NAME } from '../config/project-name.js';
 import type { StageConfig } from '../config/stage-config.js';
+import type { DatabaseConnection } from '../data/database-connection.js';
+import { importImmutableSecurityGroup } from '../network/import-immutable-security-group.js';
 import type { PerimeterSecurityGroups } from '../network/perimeter-security-groups.js';
 import { applyProjectTags } from '../project-tags.js';
 import {
@@ -25,6 +27,7 @@ export type AppStackProps = {
   readonly vpc: ec2.IVpc;
   readonly securityGroups: PerimeterSecurityGroups;
   readonly repository: ecr.IRepository;
+  readonly database: DatabaseConnection;
   readonly imageTag: string;
 };
 
@@ -35,20 +38,21 @@ export class AppStack extends Stack {
 
   constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, { env: { region: props.config.region } });
-    const { config, repository, imageTag } = props;
+    const { config, repository, database, imageTag } = props;
     this.cluster = createCluster(this, props.vpc, config);
     const logGroup = createAppLogGroup(this, config);
     const taskDefinition = createTaskDefinition(this, {
       repository,
       imageTag,
       logGroup,
+      database,
       config,
     });
     const hostedZone = importHostedZone(this, config);
     const certificate = createApiCertificate(this, hostedZone, config);
     const { loadBalancer, targetGroup } = createLoadBalancer(this, {
       vpc: props.vpc,
-      securityGroup: importImmutable(
+      securityGroup: importImmutableSecurityGroup(
         this,
         'AlbSecurityGroup',
         props.securityGroups.alb,
@@ -61,7 +65,7 @@ export class AppStack extends Stack {
     this.service = createService(this, {
       cluster: this.cluster,
       taskDefinition,
-      securityGroup: importImmutable(
+      securityGroup: importImmutableSecurityGroup(
         this,
         'AppSecurityGroup',
         props.securityGroups.app,
@@ -82,19 +86,4 @@ export class AppStack extends Stack {
 
 export function appStackId(stage: string): string {
   return `${PROJECT_NAME}-${stage}-app`;
-}
-
-// Handed the real group, CDK would add duplicate rules to it inside the network
-// stack's template; an immutable import attaches the group and changes nothing.
-function importImmutable(
-  scope: Construct,
-  id: string,
-  group: ec2.ISecurityGroup,
-): ec2.ISecurityGroup {
-  return ec2.SecurityGroup.fromSecurityGroupId(
-    scope,
-    id,
-    group.securityGroupId,
-    { mutable: false },
-  );
 }
