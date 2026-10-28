@@ -4,12 +4,12 @@ Multi-tenant Shopify app backend: NestJS 12, TypeScript, MySQL, AWS. Built phase
 phase as a backend engineering training assignment. The assignment is in
 `docs/Boris-ing.md`; each task has a design doc and a questions doc under `docs/phase-N/`.
 
-**Status:** Phase 1 complete. Tasks 1.1 to 1.5 built, deployed and verified; Phase 2 (MySQL, database architecture and migrations) next.
+**Status:** Phase 2 in progress. Task 2.1 built: RDS for MySQL, the app connected over TLS, the pool, /ready reporting the database.
 
 ## Requirements
 
 - Node 24 (`.nvmrc`) and npm
-- Docker, for the container image
+- Docker, for the container image, the e2e suite and the local database
 
 ## Setup
 
@@ -20,42 +20,79 @@ cp .env.example .env
 
 ## Run
 
+Start the local database first:
+
+```bash
+docker compose up -d
+```
+
+It runs MySQL 8.4 from `docker-compose.yml` with the dev-only login that `.env.example` carries.
+`docker compose down` stops it and keeps the data in its named volume; `docker compose down -v`
+deletes the data too.
+
 ```bash
 npm run dev          # watch mode, human-readable logs
 npm run start:dev    # watch mode, raw JSON logs
 npm run build && npm run start:prod
 ```
 
-Then `curl localhost:3000/health` and `curl localhost:3000/ready`.
+Then `curl localhost:3000/health` and `curl localhost:3000/ready`; `/ready` reports the
+database.
 
 ## Checks
 
 ```bash
 npm test                   # unit tests
-npm run test:e2e           # e2e tests over HTTP
+npm run test:e2e           # e2e tests over HTTP; Docker must be running
 npm run typecheck          # tsc --noEmit; npm test does not type-check
 npm run lint
 npm run format             # writes
 npm run format:check       # what CI runs: fails on an unformatted file, writes nothing
 ```
 
+The e2e suite starts its own MySQL 8.4 container with Testcontainers, once per run, fresh and
+empty, and removes it when the run ends. The first run pulls the image. The same command works on
+a laptop and on the GitHub runner.
+
 ## Configuration
 
 Every variable is validated at boot by `src/config/env.schema.ts`. An invalid value stops
-the process with a message naming the variable.
+the process with a message naming the variable. The database variables have no default
+unless the table gives one; a missing one stops the process the same way.
 
-| Variable    | Default       | Values                                                       |
-| ----------- | ------------- | ------------------------------------------------------------ |
-| `NODE_ENV`  | `development` | `development`, `test`, `production`                          |
-| `PORT`      | `3000`        | 1–65535                                                      |
-| `LOG_LEVEL` | `info`        | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent` |
+| Variable         | Default       | Values                                                                 |
+| ---------------- | ------------- | ---------------------------------------------------------------------- |
+| `NODE_ENV`       | `development` | `development`, `test`, `production`                                    |
+| `PORT`           | `3000`        | 1–65535                                                                |
+| `LOG_LEVEL`      | `info`        | `fatal`, `error`, `warn`, `info`, `debug`, `trace`, `silent`           |
+| `DB_HOST`        | none          | the database server's hostname                                         |
+| `DB_PORT`        | `3306`        | 1–65535                                                                |
+| `DB_NAME`        | none          | the database on that server; `commerce_intelligence` everywhere        |
+| `DB_USER`        | none          | the login                                                              |
+| `DB_PASSWORD`    | none          | the login's password; never written to a log                           |
+| `DB_POOL_SIZE`   | `10`          | connections one process keeps open, 1 or more                          |
+| `DB_SSL_CA_PATH` | unset         | path to a PEM bundle; set, the app requires TLS and verifies the server |
+
+Locally the values come from `.env`, copied from `.env.example`, and point at the compose
+database; `DB_SSL_CA_PATH` stays unset because that server has no certificate the app could
+verify. In AWS the task definition sets them all: `DB_HOST`, `DB_PORT`, `DB_NAME` and
+`DB_POOL_SIZE` as plain environment read from the data stack, `DB_SSL_CA_PATH` as
+`/app/certs/eu-north-1-bundle.pem`, AWS's certificate bundle for the region copied into the
+image, and `DB_USER` and `DB_PASSWORD` as ECS secrets, read from the Secrets Manager secret when
+the task starts and placed in the container's environment. The password is in no file, no
+template, no output and no log; only the task execution role may read the secret.
 
 ## Endpoints
 
-| Route         | Purpose                                                                    |
-| ------------- | -------------------------------------------------------------------------- |
-| `GET /health` | Liveness. `200 { "status": "ok" }` while the process runs.                 |
-| `GET /ready`  | Readiness via terminus. `503` while shutting down or a dependency is down. |
+| Route         | Purpose                                                                                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health` | Liveness. `200 { "status": "ok" }` while the process runs, whatever the database does.                                                             |
+| `GET /ready`  | Readiness via terminus. Runs `SELECT 1` through the pool with a 3-second limit and reports `database` up or down; `503` while shutting down or down. |
+
+A `200` carries `"info": { "database": { "status": "up", "responseTime": … } }`; a `503` carries
+the same shape under `error`, with the failure's message and the request id. The load balancer
+calls `/ready` every 15 seconds, so a task whose database is unreachable stops receiving traffic
+and is replaced.
 
 ## Errors and request ids
 
@@ -79,12 +116,13 @@ stack goes to the log, never the client.
 
 ```bash
 docker build -t commerce-intelligence:local .
-docker run --rm -p 3000:3000 -e LOG_LEVEL=info commerce-intelligence:local
+docker run --rm -p 3000:3000 --env-file .env -e LOG_LEVEL=info -e DB_HOST=host.docker.internal commerce-intelligence:local
 ```
 
 Two-stage image on Node 24 Alpine, production dependencies only, runs as the `node` user.
 On SIGTERM `/ready` answers 503 for 5 seconds so a load balancer can drain, then the
-process exits.
+process exits. The image also carries AWS's RDS certificate bundle under `/app/certs`, the path
+the task definition hands the app as `DB_SSL_CA_PATH`; locally the variable stays unset.
 
 ## Infrastructure
 
@@ -111,28 +149,32 @@ CLI wants it run again.
 cd infra && AWS_PROFILE=ci-admin npx cdk bootstrap aws://$(AWS_PROFILE=ci-admin aws sts get-caller-identity --query Account --output text)/eu-north-1
 ```
 
-Four stacks, deployed in this order:
+Five stacks, deployed in this order; `cdk deploy --all` orders them by what they read from each
+other:
 
-| Stack                                | Holds                                                                                                                                                                                             | Idle cost per month |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `commerce-intelligence-dev-network`  | VPC over two zones with public, private and isolated subnets, a `t4g.micro` NAT instance on a pinned Amazon Linux 2023 image, the `alb`, `app` and `data` security groups, a reject-only flow log | about 10.5 USD      |
-| `commerce-intelligence-dev-registry` | the ECR repository: immutable tags, scan on push, the last 20 images kept, retained on delete                                                                                                     | cents               |
-| `commerce-intelligence-dev-delivery` | the GitHub OIDC provider and the two roles the workflows assume: pull request (read-only) and deploy                                                                                              | nothing             |
-| `commerce-intelligence-dev-app`      | ECS cluster, task definition and service, the load balancer with HTTPS, the certificate and the `api` DNS record, the log group                                                                   | about 33 USD        |
+| Stack                                | Holds                                                                                                                                                                                                                                                | Idle cost per month |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `commerce-intelligence-dev-network`  | VPC over two zones with public, private and isolated subnets, a `t4g.micro` NAT instance on a pinned Amazon Linux 2023 image, the `alb`, `app` and `data` security groups, a reject-only flow log                                                    | about 10.5 USD      |
+| `commerce-intelligence-dev-data`     | MySQL 8.4 on a `db.t4g.micro` in the isolated subnets, one zone, 20 GiB gp3 encrypted with AWS's key, seven days of backups, deletion protection and a final snapshot on delete, TLS required by its parameter group, the admin login in Secrets Manager | about 15 USD        |
+| `commerce-intelligence-dev-registry` | the ECR repository: immutable tags, scan on push, the last 20 images kept, retained on delete                                                                                                                                                        | cents               |
+| `commerce-intelligence-dev-delivery` | the GitHub OIDC provider and the two roles the workflows assume: pull request (read-only) and deploy                                                                                                                                                 | nothing             |
+| `commerce-intelligence-dev-app`      | ECS cluster, task definition and service, the load balancer with HTTPS, the certificate and the `api` DNS record, the log group                                                                                                                      | about 33 USD        |
 
-About 44 USD a month in total, plus 0.50 USD for the hosted zone and 3 USD a year for the
-domain. Stage settings live in `infra/lib/config/stage-config.ts`. The API answers at
+About 59 USD a month in total, against a budget of 75 USD with alerts at 50, 80 and 100 percent,
+plus 0.50 USD for the hosted zone and 3 USD a year for the domain. The data stack's 15 USD is the
+server (about 12), the disk (about 2.5) and the secret (0.40); automated backups are free up to
+the disk's size. Stage settings live in `infra/lib/config/stage-config.ts`. The API answers at
 `https://api.commerce-intelligence.click/health`.
 
-The network, registry and delivery stacks carry termination protection: a delete is refused until
-the flag is turned off by hand (see Tearing down). The app stack does not; it is the one removed on
-purpose. The picture of all of it is `docs/phase-1/architecture.md`.
+The network, data, registry and delivery stacks carry termination protection: a delete is refused
+until the flag is turned off by hand (see Tearing down). The app stack does not; it is the one
+removed on purpose. The picture of all of it is `docs/architecture.md`.
 
 ### Deploying
 
 A merge to `main` deploys. The deploy workflow re-runs the checks on the merge commit, builds the
 ARM image, tags it with the commit SHA, pushes it, runs `cdk deploy --all --require-approval never`
-for the four stacks, calls `/health` and `/ready` over HTTPS from outside, and writes a summary on
+for the five stacks, calls `/health` and `/ready` over HTTPS from outside, and writes a summary on
 the run page: commit, tag, each stack's result, the two responses, links to CloudFormation and the
 log group. GitHub emails the committer when a run on `main` fails. Deploys queue behind each other;
 nothing is ever cancelled.
@@ -180,8 +222,9 @@ the deploy role, is refused.
 **The first deploy into an empty account**, after the bootstrap, from `infra/` with
 `AWS_PROFILE=ci-admin`:
 
-1. `npm run deploy -- commerce-intelligence-dev-network commerce-intelligence-dev-registry commerce-intelligence-dev-delivery -c imageTag=none`.
-   The tag is irrelevant to these three stacks, but the app stack must synthesize.
+1. `npm run deploy -- commerce-intelligence-dev-network commerce-intelligence-dev-data commerce-intelligence-dev-registry commerce-intelligence-dev-delivery -c imageTag=none`.
+   The tag is irrelevant to these four stacks, but the app stack must synthesize. The data stack
+   takes 10 to 15 minutes: RDS creates the server, then CloudFormation attaches the secret.
 2. Set the three GitHub variables (GitHub setup below) from the delivery stack's outputs.
 3. Merge to `main`. The deploy workflow builds the first image and creates the app stack; that
    first run waits for the certificate to validate, usually a few minutes.
@@ -253,7 +296,7 @@ and what is deployed.
    image tag `main` runs, and posts the diff as one comment that follows the latest commit.
 3. Review the diff. Three things get a second look: IAM and security-group changes, which CDK
    marks; resources marked for replacement; and any change to the network stack, because the app
-   stack depends on it through weak references that CloudFormation does not enforce.
+   and data stacks depend on it through weak references that CloudFormation does not enforce.
 4. Merge. The deploy workflow builds and pushes the image and runs
    `cdk deploy --all --require-approval never`; what deploys is what was reviewed.
 5. Verify: the run summary is green, and `npm run diff` with the deployed tag reports no differences.
@@ -282,8 +325,30 @@ cd infra
 AWS_PROFILE=ci-admin npm run destroy -- commerce-intelligence-dev-app -c imageTag=gate
 ```
 
-For a long pause the network stack can go too. It is protected, so the flag comes off first; the
-next deploy turns it back on.
+The data stack holds the only state, and three locks stand between a command and the data: the
+stack's termination protection, the server's deletion protection, and the final snapshot taken if
+the server is deleted anyway. A planned destroy is three steps, after the app stack is gone,
+because the app stack reads the data stack's outputs:
+
+1. Termination protection off on the stack:
+   ```bash
+   AWS_PROFILE=ci-admin aws cloudformation update-termination-protection --no-enable-termination-protection --stack-name commerce-intelligence-dev-data --region eu-north-1
+   ```
+2. Deletion protection off on the server: set `deletionProtection` to `false` in
+   `infra/lib/data/create-database-server.ts` and deploy the data stack alone,
+   `npm run deploy -- commerce-intelligence-dev-data -c imageTag=gate`. Revert the edit before
+   anything is merged; it is a one-deploy change, never a commit.
+3. Destroy:
+   ```bash
+   AWS_PROFILE=ci-admin npm run destroy -- commerce-intelligence-dev-data -c imageTag=gate
+   ```
+   CloudFormation takes a final snapshot of the server before deleting it. The snapshot keeps the
+   data and costs backup storage until it is deleted by hand, in the RDS console or with
+   `aws rds delete-db-snapshot`; that is the step that really loses the data. The next deploy of
+   the data stack creates an empty server with a new secret, both protections on.
+
+For a long pause the network stack can go too, once the data stack is gone, since the server sits
+in its subnets. It is protected, so the flag comes off first; the next deploy turns it back on.
 
 ```bash
 AWS_PROFILE=ci-admin aws cloudformation update-termination-protection --no-enable-termination-protection --stack-name commerce-intelligence-dev-network --region eu-north-1
@@ -307,21 +372,25 @@ src/
     filters/         the global exception filter
     validation/      zod validation pipe
     http/            keep-alive and proxy settings for life behind the load balancer
-  health/            /health and /ready
+  database/          the mysql2 pool from the environment, Drizzle on it, the injection tokens, closed on shutdown
+  health/            /health and /ready, with the database indicator behind /ready
   app.setup.ts       configureApp: logger, edge middleware, shutdown hooks
   main.ts
-test/                e2e specs and the shared app-boot helper
+test/                e2e specs, the shared app-boot helper, global-setup.ts (one MySQL container per run) and e2e-setup.ts (its address into every worker's environment)
+certs/               AWS's RDS certificate bundle for eu-north-1, copied into the image
+docker-compose.yml   MySQL 8.4 for local development, dev-only login, data in a named volume
 infra/
-  bin/app.ts         CDK entry point: stage config and image tag → the four stacks
+  bin/app.ts         CDK entry point: stage config and image tag → the five stacks
   lib/config/        stage settings, the project name, the image tag resolver
-  lib/network/       the VPC, NAT instance, security groups, flow log, outputs, and the stack
+  lib/network/       the VPC, NAT instance, security groups, flow log, outputs, the immutable import helper, and the stack
+  lib/data/          the MySQL engine, the parameter group, the admin secret, the server, the connection, outputs, and the stack
   lib/registry/      the ECR repository and its stack
   lib/delivery/      the GitHub OIDC provider, the pull request and deploy roles, and the stack
   lib/app/           cluster, task definition, service, load balancer, certificate, record, outputs, and the stack
   lib/project-tags.ts
   test/              template queries, the test App, stack fixtures and the validation-report reader used by the specs
 .github/workflows/   checks.yml, pull-request.yml, deploy.yml, and the rules test that guards them
-docs/                the assignment, per-task design and questions docs
+docs/                the assignment, per-task design and questions docs, and the architecture picture
 ```
 
 ## Documentation
@@ -333,4 +402,5 @@ docs/                the assignment, per-task design and questions docs
 - `docs/phase-1/task-1.3-design.md` and `task-1.3-questions.md`: compute and deployment
 - `docs/phase-1/task-1.4-design.md` and `task-1.4-questions.md`: infrastructure as code
 - `docs/phase-1/task-1.5-design.md` and `task-1.5-questions.md`: the GitHub Actions pipeline
-- `docs/phase-1/architecture.md`: the environment as deployed, updated by every task that changes it
+- `docs/phase-2/task-2.1-design.md` and `task-2.1-questions.md`: RDS for MySQL, the secret, TLS, the pool
+- `docs/architecture.md`: the environment as deployed, updated by every task that changes it

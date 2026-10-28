@@ -123,7 +123,7 @@ full reference. Apply them while writing, not after. The rules that come up most
   asserts that no finding is left unacknowledged.
 - Fixtures: `create*Stack(app, config)` returns a stack, `synthesize*` returns its template,
   `read*` reads from a synthesized assembly.
-- `docs/phase-1/architecture.md` is the living picture of the environment. A task that changes
+- `docs/architecture.md` is the living picture of the environment. A task that changes
   what runs updates it and its "Last updated" line.
 
 ## Conventions from Task 1.5
@@ -148,3 +148,30 @@ full reference. Apply them while writing, not after. The rules that come up most
   the reviewer, not a check. Nothing in the pipeline is cancelled: `cancel-in-progress: false`
   everywhere.
 - A deploy from a laptop is for the first deploy into an empty account and for recovery only.
+
+## Conventions from Task 2.1
+
+- Five stacks: `-data` joins `-network`, `-registry`, `-delivery` and `-app`. The data stack carries
+  `terminationProtection: true`; the server carries deletion protection and a snapshot removal
+  policy, so a planned destroy is three steps (README, Tearing down).
+- Database settings that differ per stage (`databaseInstanceType`, `databaseAllocatedStorageGiB`,
+  `databaseBackupRetentionDays`, `databaseMultiAz`, `databasePoolSize`) live in the stage config.
+  The database name is a constant in `infra/lib/data/database-name.ts`. The engine version is the
+  major only, `8.4`; its CloudFormation validation finding is acknowledged on the server construct.
+- The admin login is a `DatabaseSecret` the data stack creates. It reaches the task as ECS secrets,
+  `DB_USER` and `DB_PASSWORD`, read by the execution role at task start, never as plain environment.
+  The plain variables are `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_POOL_SIZE` and `DB_SSL_CA_PATH`.
+- Verbs: `resolve*` computes a value from inputs (`resolvePoolOptions`, `resolveDatabaseConnection`);
+  `import*` attaches an existing resource without changing it (`importImmutableSecurityGroup`).
+- The app reaches the database through `src/database/`: `DATABASE_POOL` is the mysql2 pool,
+  `DATABASE` is Drizzle on top of it. A feature module imports `DatabaseModule` explicitly. The pool
+  options are a pure function of the validated environment; TLS is on only when `DB_SSL_CA_PATH`
+  names a bundle. `certs/<region>-bundle.pem` is committed and copied into the image.
+- `/ready` runs `SELECT 1` through the pool with a 3-second limit via terminus's `attempt`. A new
+  indicator is a class on `HealthIndicatorService`, added to the controller's list. `/health` never
+  touches a dependency.
+- The e2e suite gets a real MySQL 8.4 from Testcontainers in `test/global-setup.ts`; the address
+  reaches the workers through vitest's `provide` and `inject` in `test/e2e-setup.ts`, which must set
+  `process.env` before any spec imports the app, because the config module validates at import time.
+  A boundary is swapped per spec with `createTestApp([], [{ provide, useValue }])`. Docker must be
+  running for `npm run test:e2e`; locally, `docker compose up -d` before `npm run dev`.
