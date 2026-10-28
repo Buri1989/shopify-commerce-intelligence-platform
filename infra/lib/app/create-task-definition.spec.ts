@@ -8,6 +8,14 @@ import {
 } from '../../test/template-queries.js';
 import { resolveStageConfig } from '../config/stage-config.js';
 
+const DATA_STACK = 'commerce-intelligence-dev-data';
+const databaseSecretArn = {
+  'Fn::GetStackOutput': expect.objectContaining({
+    StackName: DATA_STACK,
+    OutputName: expect.stringContaining('DatabaseAdminSecret'),
+  }),
+};
+
 describe('createTaskDefinition', () => {
   let template: Template;
   let taskDefinition: ResourceProperties;
@@ -47,11 +55,45 @@ describe('createTaskDefinition', () => {
     );
   });
 
-  it('passes the three validated environment variables and nothing else', () => {
+  it('passes the validated environment variables and nothing else', () => {
     expect(taskDefinition.ContainerDefinitions[0].Environment).toEqual([
       { Name: 'NODE_ENV', Value: 'production' },
       { Name: 'PORT', Value: '3000' },
       { Name: 'LOG_LEVEL', Value: 'info' },
+      {
+        Name: 'DB_HOST',
+        Value: {
+          'Fn::GetStackOutput': expect.objectContaining({
+            StackName: DATA_STACK,
+            OutputName: expect.stringContaining('EndpointAddress'),
+          }),
+        },
+      },
+      {
+        Name: 'DB_PORT',
+        Value: {
+          'Fn::GetStackOutput': expect.objectContaining({
+            StackName: DATA_STACK,
+            OutputName: expect.stringContaining('EndpointPort'),
+          }),
+        },
+      },
+      { Name: 'DB_NAME', Value: 'commerce_intelligence' },
+      { Name: 'DB_POOL_SIZE', Value: '10' },
+      { Name: 'DB_SSL_CA_PATH', Value: '/app/certs/eu-north-1-bundle.pem' },
+    ]);
+  });
+
+  it('hands the login to the container as secrets, read from the data stack secret at task start', () => {
+    expect(taskDefinition.ContainerDefinitions[0].Secrets).toEqual([
+      {
+        Name: 'DB_USER',
+        ValueFrom: { 'Fn::Join': ['', [databaseSecretArn, ':username::']] },
+      },
+      {
+        Name: 'DB_PASSWORD',
+        ValueFrom: { 'Fn::Join': ['', [databaseSecretArn, ':password::']] },
+      },
     ]);
   });
 
@@ -70,7 +112,7 @@ describe('createTaskDefinition', () => {
     });
   });
 
-  it('lets the execution role pull only this image and write only this log group', () => {
+  it('lets the execution role pull only this image, write only this log group and read only the database secret', () => {
     const executionRoleId = taskDefinition.ExecutionRoleArn['Fn::GetAtt'][0];
     expect(findPolicyStatementsOfRole(template, executionRoleId)).toEqual([
       {
@@ -96,6 +138,14 @@ describe('createTaskDefinition', () => {
             'Arn',
           ],
         },
+      },
+      {
+        Action: [
+          'secretsmanager:DescribeSecret',
+          'secretsmanager:GetSecretValue',
+        ],
+        Effect: 'Allow',
+        Resource: databaseSecretArn,
       },
     ]);
   });

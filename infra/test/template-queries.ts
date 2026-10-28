@@ -75,6 +75,21 @@ export function securityGroupIdAttribute(
   };
 }
 
+// CloudFormation reads a secret's field at deploy time through a dynamic reference;
+// the template carries the pointer and never the value.
+export function secretFieldReference(secretId: string, field: string): object {
+  return {
+    'Fn::Join': [
+      '',
+      [
+        '{{resolve:secretsmanager:',
+        { Ref: secretId },
+        `:SecretString:${field}::}}`,
+      ],
+    ],
+  };
+}
+
 export function findInboundRules(
   template: Template,
   constructId: string,

@@ -7,6 +7,7 @@ export default defineConfig({
     root: './',
     include: ['**/*.e2e-spec.ts'],
     exclude: [...configDefaults.exclude, 'infra/**'],
-    setupFiles: ['./test/setup.ts'],
+    globalSetup: ['./test/global-setup.ts'],
+    setupFiles: ['./test/e2e-setup.ts'],
   },
 });

@@ -15,5 +15,8 @@ USER node
 COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
+# AWS's RDS certificate bundle for the stage's region; the app verifies the
+# server against it when DB_SSL_CA_PATH names it (design §4.5).
+COPY --chown=node:node certs ./certs
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
