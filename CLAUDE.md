@@ -175,3 +175,25 @@ full reference. Apply them while writing, not after. The rules that come up most
   `process.env` before any spec imports the app, because the config module validates at import time.
   A boundary is swapped per spec with `createTestApp([], [{ provide, useValue }])`. Docker must be
   running for `npm run test:e2e`; locally, `docker compose up -d` before `npm run dev`.
+
+## Conventions from Task 2.2
+
+- The schema lives in `src/database/schema/`: one file per table exporting one `mysqlTable`,
+  re-exported by `index.ts`, the one import for later tasks. The shared column pieces are the
+  `create*` functions of `shared-columns.ts`. Nothing creates tables; migrations and drizzle-kit
+  are Task 2.3.
+- Every table carries `store_id`. A grandchild points at its parent through the pair
+  `(store_id, parent_id)` → `(store_id, id)`, and every parent referenced that way carries a unique
+  index on `(store_id, id)`. The two emptied pointers on `order_items` are single-column with
+  `set null`.
+- Every pointer and index is named by hand, `<table>_<columns>_<kind>` with `_fk`, `_idx` or
+  `_unique`, under 64 characters. A pointer is declared with `foreignKey({ name, columns,
+  foreignColumns })` in the table's constraint list, never with `.references()`, whose automatic
+  name has another form. A pair key is `primaryKey({ columns })`.
+- Money is `decimal(19,4)`, read as a string; times are `datetime(3)` in UTC; `created_at`
+  defaults on the server and `updated_at` is set by the app through `$onUpdate`. A state Shopify
+  defines is `varchar(32)`; a state we define is `mysqlEnum`. A day is `date` in `string` mode.
+- Tests: one spec per table reads the definition through the `read*` helpers of
+  `test/table-queries.ts`, no database. `erd.spec.ts` reads the Mermaid ERD out of §5.1 of the
+  design doc with `test/erd.ts`, maps the tables to the same shape with `test/erd-of-tables.ts`
+  and compares both ways, columns in order: a table change updates the drawing or the gate fails.
