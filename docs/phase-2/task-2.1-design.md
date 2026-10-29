@@ -379,7 +379,7 @@ reserving the server for a year, a start/stop schedule, running MySQL ourselves.
   Task 2.1".
 - `CLAUDE.md`: "Conventions from Task 2.1".
 - `docs/phase-2/task-2.1-questions.md`: RDS against self-managed MySQL (the spec's investigation),
-  the seven general questions for RDS for MySQL, what the first deploy showed, and "Why we picked
+  the seven general questions for RDS for MySQL, and "Why we picked
   what we picked".
 
 ## 5. Build order
@@ -407,12 +407,11 @@ show the implementation in chat → approval → write it → run it green → r
    green.
 8. The certificate bundle: `certs/eu-north-1-bundle.pem` from AWS's truststore (the download is
    asked for in chat first), the Dockerfile's `COPY`, a local `docker build` to see it land.
-9. Docs: README, `architecture.md`, `CLAUDE.md`, the questions doc without the deploy section.
+9. Docs: README, `architecture.md`, `CLAUDE.md`, the questions doc.
 10. Boris raises the budget to 75. Push; open the pull request; the four checks green; the diff
     comment shows the new stack and the task definition change. Merge. The deploy run watched in
     chat: the data stack's 10 to 15 minutes, then the app stack; `/ready` 200 with the database up;
     `npm run diff` and `npm run drift` clean.
-11. Follow-up: the questions doc's "what the first deploy showed" section.
 
 Commits happen when Boris says so.
 

@@ -2,7 +2,7 @@
 
 Short answers. Task 2.1 asks for one investigation, RDS against a self-managed MySQL, and the
 general rules ask seven questions of the decision. Built 2026-10-28, not yet deployed.
-Alternatives and trade-offs are in `task-2.1-design.md`. §4 is filled after the first deploy.
+Alternatives and trade-offs are in `task-2.1-design.md`.
 
 ## 1. RDS against a self-managed MySQL
 
@@ -70,10 +70,6 @@ Ways to pay less, each with its catch:
 - A start/stop schedule: free while stopped, but RDS restarts a stopped server after seven
   days, and the e2e proof on every merge needs it up.
 - MySQL on EC2: half the price, all the work (§1).
-
-## 4. What the first deploy showed
-
-Written after the first deploy.
 
 ## Why we picked what we picked
 
