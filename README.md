@@ -4,7 +4,7 @@ Multi-tenant Shopify app backend: NestJS 12, TypeScript, MySQL, AWS. Built phase
 phase as a backend engineering training assignment. The assignment is in
 `docs/Boris-ing.md`; each task has a design doc and a questions doc under `docs/phase-N/`.
 
-**Status:** Phase 2 in progress. Task 2.1 built: RDS for MySQL, the app connected over TLS, the pool, /ready reporting the database.
+**Status:** Phase 2 in progress. Task 2.2 built: the ten-table schema in Drizzle, the ERD held to the code by a spec; tables reach the database with Task 2.3.
 
 ## Requirements
 
@@ -403,4 +403,5 @@ docs/                the assignment, per-task design and questions docs, and the
 - `docs/phase-1/task-1.4-design.md` and `task-1.4-questions.md`: infrastructure as code
 - `docs/phase-1/task-1.5-design.md` and `task-1.5-questions.md`: the GitHub Actions pipeline
 - `docs/phase-2/task-2.1-design.md` and `task-2.1-questions.md`: RDS for MySQL, the secret, TLS, the pool
+- `docs/phase-2/task-2.2-design.md` and `task-2.2-questions.md`: the schema, the ERD, keys, pointers, delete rules
 - `docs/architecture.md`: the environment as deployed, updated by every task that changes it
