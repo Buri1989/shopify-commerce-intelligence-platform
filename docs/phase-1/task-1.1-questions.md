@@ -1,99 +1,124 @@
 # Task 1.1 — Questions to investigate
 
-Short answers. Alternatives and trade-offs are in `task-1.1-design.md`.
+Short answers in plain words, so that they can be explained to the next person. Alternatives and
+trade-offs are in `task-1.1-design.md`.
 
 ## 1. Why NestJS? What are its advantages and disadvantages?
 
-A TypeScript framework with modules, dependency injection and a request pipeline built in.
+NestJS is a framework for building server applications in TypeScript. It gives the app a
+structure out of the box: the code is split into modules, every class says what it needs and
+gets it handed in (dependency injection, question 2), and every request passes through a fixed
+pipeline of steps on its way to our code.
 
 Advantages:
 
-- Structure that holds up across many modules.
-- Testable: dependency injection lets every unit take fakes.
-- `@nestjs/config`, `@nestjs/terminus` and `@nestjs/testing` cover the foundation.
-- The same modules can serve HTTP, queues or WebSockets.
+- The structure holds up when the app grows to many modules; every module looks the same.
+- It is easy to test. Every class gets its dependencies handed in, so a test can hand in fakes.
+- The official packages cover the foundation: `@nestjs/config` for settings, `@nestjs/terminus`
+  for health checks, `@nestjs/testing` for tests.
+- The same modules can later serve HTTP, queues or WebSockets.
 
 Disadvantages:
 
-- Heavier than Express or Fastify: more concepts, slower cold start.
-- Relies on TypeScript-only decorator features.
-- Some defaults do not fit; we chose zod over class-validator.
+- Heavier than Express or Fastify: more concepts to learn, and the process takes longer to start.
+- It leans on decorators, a TypeScript feature that plain JavaScript does not have.
+- Some of its defaults did not fit us; we chose zod instead of class-validator for validation.
 
-Chosen because six phases of features need the structure.
+We chose it because six phases of features need the structure.
 
 ## 2. What is dependency injection?
 
-A class names what it needs in its constructor and gets it from outside. Nest builds the object
-graph once at boot.
+A class names what it needs in its constructor and gets it from outside, instead of creating it
+itself. Nest builds the whole set of objects once, when the app starts, and hands each class what
+it asked for.
 
-Example: `AllExceptionsFilter` asks for the logger by token. In tests it gets a fake, with no
-module mocking.
+Example: `AllExceptionsFilter`, the class that turns a thrown error into a response, asks for the
+logger by a token, a name. In tests it gets a fake logger, with no module mocking.
 
 ## 3. What is the difference between controllers, services, and repositories?
 
-- **Controller**: HTTP in, HTTP out. No business rules.
-- **Service**: the business rules. No HTTP. Unit-tested without a server.
-- **Repository**: the database boundary. Services depend on its interface, so it can be faked.
+- **Controller**: takes the HTTP request in and sends the HTTP response out. No business rules.
+- **Service**: holds the business rules. It knows nothing about HTTP, so it is unit-tested
+  without a server.
+- **Repository**: the boundary to the database. A service depends on the repository's interface,
+  not on its code, so a test can swap in a fake.
 
-Dependencies go controller → service → repository, never back.
+Dependencies go one way: controller → service → repository, never back.
 
 ## 4. What makes a REST API well-designed?
 
-- Nouns for resources, HTTP verbs for actions, standard status codes.
+- Nouns for resources, HTTP verbs for actions, the standard status codes.
 - One error shape everywhere: `{ statusCode, error, message, requestId, issues? }`.
-- Validation at the edge. A 400 names every bad field.
-- Nothing internal leaks. Unexpected errors are a generic 500; the stack goes to the log.
-- Additive changes only.
-- Idempotent writes where retries happen.
-- Pagination and filtering on collections.
+- Validation at the edge, where the request comes in. A 400 names every bad field.
+- Nothing internal leaks. An unexpected error becomes a generic 500; its stack trace goes to the
+  log, not to the client.
+- Changes only add. Nothing a client relies on is removed or renamed.
+- A write that may be retried is idempotent: sending the same request twice has the effect of
+  sending it once.
+- Lists are paginated and can be filtered.
 
 ## 5. What are middleware, guards, and interceptors?
 
-- **Middleware**: runs before routing, sees every request. Used for request ids and the request
-  log line.
-- **Guards**: run after routing, before the handler. Answer one question: may this request
-  proceed? Auth lives here.
-- **Interceptors**: wrap the handler. Transform the response, add timing or caching.
+Three kinds of code that run around a request, at different points.
 
-Pipes validate one parameter. Exception filters turn a thrown error into a response.
+- **Middleware** runs first, before Nest has decided which handler the request goes to, and
+  sees every request. We use it for the request id and the request log line.
+- **Guards** run after routing, before the handler. They answer one question: may this request
+  proceed? Authentication lives here.
+- **Interceptors** wrap the handler: code before it and after it. Used to transform the
+  response, add timing or caching.
+
+Two more: a pipe validates one parameter, and an exception filter turns a thrown error into a
+response.
 
 ## 6. How should an application handle configuration across environments?
 
-- From the environment, never from source. One image, different variables.
-- Validated at boot with zod. A bad value stops the process and names the variable.
-- Typed access through `ConfigService`.
-- Secrets come from AWS at runtime, locally from an untracked `.env`. `.env.example` lists
-  every variable.
+- Settings come from environment variables, never from the source code. One image, different
+  variables per environment.
+- They are validated when the app starts, with zod. A bad value stops the process and names
+  the variable.
+- The code reads them through `ConfigService`, typed.
+- Secrets come from AWS at runtime; locally they come from an untracked `.env` file.
+  `.env.example` lists every variable, without values.
 - Tests ignore `.env`.
 
 ## 7. Why are health and readiness endpoints different?
 
-- `/health`: is the process alive? 200 while it runs. Depends on nothing external. Failure
-  restarts the container.
-- `/ready`: can it take traffic now? 503 while a dependency is down or during shutdown. Failure
-  stops traffic, no restart.
+- `/health` answers "is the process alive?". It returns 200 as long as the process runs, and it
+  depends on nothing outside the app. When it fails, the platform restarts the container.
+- `/ready` answers "can it take traffic right now?". It returns 503 while a dependency is down
+  or while the app is shutting down. When it fails, the platform stops sending traffic, with no
+  restart.
 
-Verified on the image: after SIGTERM `/ready` is 503, `/health` stays 200, the container drains
-for 5 seconds, then exits 0.
+Verified on the built image: after the stop signal, SIGTERM, `/ready` returns 503 while
+`/health` stays 200, the container keeps answering the requests in flight for 5 seconds, then
+exits with code 0.
 
 ## Why we picked what we picked
 
-- **NestJS**: structure for six phases. See question 1.
-- **zod over class-validator**: one schema gives the check and the type. Per parameter, because
-  a zod schema is a value Nest cannot reflect on.
-- **zod for env**: same library. A bad value stops the boot.
-- **pino**: JSON lines CloudWatch can query, and the fastest. Nest's own lines go through it, so
-  there is one format.
-- **Request id via AsyncLocalStorage**: every log line carries it without passing it around.
-- **`app.use` before `init`**: Nest's body parser runs before module middleware. This puts ours
-  ahead of it.
-- **One global exception filter**: one response shape for every error.
-- **Nest-style error body over RFC 9457**: nobody consumes `type` and `instance` yet. Fields can
-  be added later.
-- **Mappers plus a resolver**: a new error source is a new file, not a filter edit.
-- **terminus**: handles the shutdown 503 and ships database indicators.
-- **Separate `/health` and `/ready`**: see question 7.
-- **Node 24 LTS**: pinned in `.nvmrc` and `engines`.
-- **Two-stage Alpine image**: runtime stage carries only the compiled app, runs non-root.
-- **Vitest**: in the scaffold, native ESM and TypeScript.
-- **Unit tests boot nothing from Nest**: fast, fail for one reason. E2E covers HTTP.
+- **NestJS.** Structure for six phases of features. Question 1.
+- **zod instead of class-validator for request validation.** One zod schema gives both the
+  check and the TypeScript type, so a shape is written once. It is applied per parameter, not as
+  a global pipe: Nest's global validation reads the class of a parameter to learn its shape, and
+  a zod schema is a value, not a class, so there is nothing for it to read.
+- **zod for the environment too.** The same library; a bad value stops the boot.
+- **pino for logging.** It writes JSON lines that CloudWatch can query, and it is the fastest
+  Node logger. Nest's own log lines are routed through it, so there is one format.
+- **The request id kept in AsyncLocalStorage.** A per-request store that Node provides; every
+  log line of a request carries the id without passing it from function to function.
+- **Our middleware registered with `app.use` before `init`.** Nest's body parser runs before
+  module middleware; registering ours this way puts it ahead of the parser.
+- **One global exception filter.** One response shape for every error.
+- **Nest's error body rather than RFC 9457, "problem details".** Nobody consumes its `type` and
+  `instance` fields yet; fields can be added later.
+- **Mappers plus a resolver for errors.** Each source of errors has its own small mapper; a new
+  source is a new file, not an edit to the filter.
+- **terminus for health.** It handles the 503 during shutdown and ships ready-made database
+  indicators for Phase 2.
+- **Separate `/health` and `/ready`.** Question 7.
+- **Node 24 LTS.** Pinned in `.nvmrc` and in `engines`.
+- **A two-stage Alpine image.** One stage installs and compiles; the runtime stage carries only
+  the compiled app and runs as a non-root user.
+- **Vitest.** It came with the scaffold and runs ESM and TypeScript natively.
+- **Unit tests boot nothing from Nest.** Fast, and they fail for one reason. E2E tests cover
+  HTTP.
