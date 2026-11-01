@@ -4,7 +4,7 @@ Multi-tenant Shopify app backend: NestJS 12, TypeScript, MySQL, AWS. Built phase
 phase as a backend engineering training assignment. The assignment is in
 `docs/Boris-ing.md`; each task has a design doc and a questions doc under `docs/phase-N/`.
 
-**Status:** Phase 2 in progress. Task 2.2 built: the ten-table schema in Drizzle, the ERD held to the code by a spec; tables reach the database with Task 2.3.
+**Status:** Phase 2 in progress. Task 2.3 built: the five-file migration chain, the locked migration script, the migration stack and the deploy step that runs the migrations before the service moves.
 
 ## Requirements
 
@@ -38,6 +38,53 @@ npm run build && npm run start:prod
 
 Then `curl localhost:3000/health` and `curl localhost:3000/ready`; `/ready` reports the
 database.
+
+## Migrations
+
+The tables are written in `src/database/schema/`; the database learns about them through the
+numbered SQL files in `src/database/migrations/`, applied in order, each recorded in the
+`__drizzle_migrations` table. Five files so far: the ten tables, the index on
+`orders (store_id, placed_at)`, the `orders.placed_on` column, its fill from `placed_at`, and its
+tightening to `NOT NULL`.
+
+**Writing a file.** Change the table files, then:
+
+```bash
+npm run migrate:generate -- --name <what_changed>
+```
+
+drizzle-kit compares the table files with its last snapshot under `migrations/meta/` and writes
+the difference as `NNNN_<what_changed>.sql`; read the SQL before committing it. A file that changes
+rows rather than tables, such as a fill, is written by hand into an empty file:
+
+```bash
+npm run migrate:generate -- --custom --name <what_changed>
+```
+
+One change per file, forward only, no undo files. Every file keeps the previous image working: add
+first, remove in a later deploy, and make a column required only once every running version writes
+it; the strategy is in `docs/phase-2/task-2.3-questions.md` §1. A table change without a migration
+fails `npm test`.
+
+**Running the chain locally.** With the compose database up:
+
+```bash
+npm run migrate
+```
+
+The script reads `.env`, opens one connection, takes the MySQL named lock
+`migrations:<DB_NAME>` and applies the files the database has not seen. It logs
+`migrations applied: N` and exits 1 on a failure, or at once when another run holds the lock. The
+e2e suite runs the whole chain on its own MySQL on every `npm run test:e2e`.
+
+**In the deploy.** The deploy run deploys the delivery and migration stacks first, so the migration
+task definition names the new image, then starts that task in the private subnets, waits for it to
+stop, prints its log, and fails the run if the task exited with anything but 0. Only then does it
+deploy the app stack and move the service; a failed migration leaves the old image serving. The
+same image runs the migration and the service: `node dist/database/migrate.js` on a one-off task of
+the migration stack. The run summary's `Migrations` row says `applied N`, `nothing to run` or
+`failed`, with a link to the migration log group `/commerce-intelligence/dev/migration`. A rollback
+runs the older image's chain too; it finds nothing new and exits 0.
 
 ## Checks
 
@@ -149,16 +196,17 @@ CLI wants it run again.
 cd infra && AWS_PROFILE=ci-admin npx cdk bootstrap aws://$(AWS_PROFILE=ci-admin aws sts get-caller-identity --query Account --output text)/eu-north-1
 ```
 
-Five stacks, deployed in this order; `cdk deploy --all` orders them by what they read from each
+Six stacks, deployed in this order; `cdk deploy --all` orders them by what they read from each
 other:
 
-| Stack                                | Holds                                                                                                                                                                                                                                                | Idle cost per month |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `commerce-intelligence-dev-network`  | VPC over two zones with public, private and isolated subnets, a `t4g.micro` NAT instance on a pinned Amazon Linux 2023 image, the `alb`, `app` and `data` security groups, a reject-only flow log                                                    | about 10.5 USD      |
-| `commerce-intelligence-dev-data`     | MySQL 8.4 on a `db.t4g.micro` in the isolated subnets, one zone, 20 GiB gp3 encrypted with AWS's key, seven days of backups, deletion protection and a final snapshot on delete, TLS required by its parameter group, the admin login in Secrets Manager | about 15 USD        |
-| `commerce-intelligence-dev-registry` | the ECR repository: immutable tags, scan on push, the last 20 images kept, retained on delete                                                                                                                                                        | cents               |
-| `commerce-intelligence-dev-delivery` | the GitHub OIDC provider and the two roles the workflows assume: pull request (read-only) and deploy                                                                                                                                                 | nothing             |
-| `commerce-intelligence-dev-app`      | ECS cluster, task definition and service, the load balancer with HTTPS, the certificate and the `api` DNS record, the log group                                                                                                                      | about 33 USD        |
+| Stack                                 | Holds                                                                                                                                                                                                                                                    | Idle cost per month |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `commerce-intelligence-dev-network`   | VPC over two zones with public, private and isolated subnets, a `t4g.micro` NAT instance on a pinned Amazon Linux 2023 image, the `alb`, `app` and `data` security groups, a reject-only flow log                                                        | about 10.5 USD      |
+| `commerce-intelligence-dev-data`      | MySQL 8.4 on a `db.t4g.micro` in the isolated subnets, one zone, 20 GiB gp3 encrypted with AWS's key, seven days of backups, deletion protection and a final snapshot on delete, TLS required by its parameter group, the admin login in Secrets Manager | about 15 USD        |
+| `commerce-intelligence-dev-registry`  | the ECR repository: immutable tags, scan on push, the last 20 images kept, retained on delete                                                                                                                                                            | cents               |
+| `commerce-intelligence-dev-migration` | the migration task definition with its two roles, the log group `/commerce-intelligence/dev/migration`, and the outputs the deploy step reads; a task runs from it once per deploy, before the service moves                                             | cents               |
+| `commerce-intelligence-dev-delivery`  | the GitHub OIDC provider and the two roles the workflows assume: pull request (read-only) and deploy                                                                                                                                                     | nothing             |
+| `commerce-intelligence-dev-app`       | ECS cluster, task definition and service, the load balancer with HTTPS, the certificate and the `api` DNS record, the log group                                                                                                                          | about 33 USD        |
 
 About 59 USD a month in total, against a budget of 75 USD with alerts at 50, 80 and 100 percent,
 plus 0.50 USD for the hosted zone and 3 USD a year for the domain. The data stack's 15 USD is the
@@ -167,17 +215,19 @@ the disk's size. Stage settings live in `infra/lib/config/stage-config.ts`. The 
 `https://api.commerce-intelligence.click/health`.
 
 The network, data, registry and delivery stacks carry termination protection: a delete is refused
-until the flag is turned off by hand (see Tearing down). The app stack does not; it is the one
-removed on purpose. The picture of all of it is `docs/architecture.md`.
+until the flag is turned off by hand (see Tearing down). The app and migration stacks do not; they
+are the two removed on purpose. The picture of all of it is `docs/architecture.md`.
 
 ### Deploying
 
 A merge to `main` deploys. The deploy workflow re-runs the checks on the merge commit, builds the
-ARM image, tags it with the commit SHA, pushes it, runs `cdk deploy --all --require-approval never`
-for the five stacks, calls `/health` and `/ready` over HTTPS from outside, and writes a summary on
-the run page: commit, tag, each stack's result, the two responses, links to CloudFormation and the
-log group. GitHub emails the committer when a run on `main` fails. Deploys queue behind each other;
-nothing is ever cancelled.
+ARM image, tags it with the commit SHA, pushes it, deploys the delivery and migration stacks with
+that tag, runs the migration task and waits for it (Migrations, above), runs
+`cdk deploy --all --require-approval never` for the six stacks, calls `/health` and `/ready` over
+HTTPS from outside, and writes a summary on the run page: commit, tag, the migration result, each
+stack's result, the two responses, links to CloudFormation and the two log groups. GitHub emails
+the committer when a run on `main` fails. Deploys queue behind each other; nothing is ever
+cancelled.
 
 **When a deploy fails**, three places, in this order:
 
@@ -222,12 +272,15 @@ the deploy role, is refused.
 **The first deploy into an empty account**, after the bootstrap, from `infra/` with
 `AWS_PROFILE=ci-admin`:
 
-1. `npm run deploy -- commerce-intelligence-dev-network commerce-intelligence-dev-data commerce-intelligence-dev-registry commerce-intelligence-dev-delivery -c imageTag=none`.
-   The tag is irrelevant to these four stacks, but the app stack must synthesize. The data stack
-   takes 10 to 15 minutes: RDS creates the server, then CloudFormation attaches the secret.
+1. `npm run deploy -- commerce-intelligence-dev-network commerce-intelligence-dev-data commerce-intelligence-dev-registry commerce-intelligence-dev-migration commerce-intelligence-dev-delivery -c imageTag=none`.
+   The migration stack comes before the delivery stack, which reads its outputs. The tag is
+   written into the migration task definition and nothing runs it yet; the first merge rewrites
+   it. The data stack takes 10 to 15 minutes: RDS creates the server, then CloudFormation attaches
+   the secret.
 2. Set the three GitHub variables (GitHub setup below) from the delivery stack's outputs.
-3. Merge to `main`. The deploy workflow builds the first image and creates the app stack; that
-   first run waits for the certificate to validate, usually a few minutes.
+3. Merge to `main`. The deploy workflow builds the first image, runs the migration chain against
+   the empty database and creates the app stack; that first run waits for the certificate to
+   validate, usually a few minutes.
 
 **Recovery**, when the pipeline itself is what is broken. The same steps a run performs, from a
 clean commit, from the repository root:
@@ -322,13 +375,14 @@ aws ssm get-parameter --region eu-north-1 --name /aws/service/ami-amazon-linux-l
 
 ```bash
 cd infra
-AWS_PROFILE=ci-admin npm run destroy -- commerce-intelligence-dev-app -c imageTag=gate
+AWS_PROFILE=ci-admin npm run destroy -- commerce-intelligence-dev-app commerce-intelligence-dev-migration -c imageTag=gate
 ```
 
-The data stack holds the only state, and three locks stand between a command and the data: the
-stack's termination protection, the server's deletion protection, and the final snapshot taken if
-the server is deleted anyway. A planned destroy is three steps, after the app stack is gone,
-because the app stack reads the data stack's outputs:
+Neither stack is protected, and the next merge brings both back. The data stack holds the only
+state, and three locks stand between a command and the data: the stack's termination protection,
+the server's deletion protection, and the final snapshot taken if the server is deleted anyway. A
+planned destroy is three steps, after the app and migration stacks are gone, because both read the
+data stack's outputs:
 
 1. Termination protection off on the stack:
    ```bash
@@ -372,21 +426,23 @@ src/
     filters/         the global exception filter
     validation/      zod validation pipe
     http/            keep-alive and proxy settings for life behind the load balancer
-  database/          the mysql2 pool from the environment, Drizzle on it, the injection tokens, closed on shutdown
+  database/          the pool and Drizzle on it; schema/ the ten tables; migrations/ the SQL chain with drizzle-kit's journal and snapshots; the migration script and its lock
   health/            /health and /ready, with the database indicator behind /ready
   app.setup.ts       configureApp: logger, edge middleware, shutdown hooks
   main.ts
-test/                e2e specs, the shared app-boot helper, global-setup.ts (one MySQL container per run) and e2e-setup.ts (its address into every worker's environment)
+test/                e2e specs, the shared app-boot helper, the migration helpers, global-setup.ts (one MySQL container per run) and e2e-setup.ts (its address into every worker's environment)
 certs/               AWS's RDS certificate bundle for eu-north-1, copied into the image
 docker-compose.yml   MySQL 8.4 for local development, dev-only login, data in a named volume
+drizzle.config.ts    drizzle-kit: the table files in, the migrations folder out
 infra/
-  bin/app.ts         CDK entry point: stage config and image tag → the five stacks
+  bin/app.ts         CDK entry point: stage config and image tag → the six stacks
   lib/config/        stage settings, the project name, the image tag resolver
   lib/network/       the VPC, NAT instance, security groups, flow log, outputs, the immutable import helper, and the stack
   lib/data/          the MySQL engine, the parameter group, the admin secret, the server, the connection, outputs, and the stack
   lib/registry/      the ECR repository and its stack
-  lib/delivery/      the GitHub OIDC provider, the pull request and deploy roles, and the stack
-  lib/app/           cluster, task definition, service, load balancer, certificate, record, outputs, and the stack
+  lib/delivery/      the GitHub OIDC provider, the pull request and deploy roles, the grant that lets the deploy role run the migration task, and the stack
+  lib/app/           cluster, task definition, service, load balancer, certificate, record, outputs, the stack, and the pieces both task definitions share
+  lib/migration/     the migration task definition, its log group, the outputs the deploy step reads, and the stack
   lib/project-tags.ts
   test/              template queries, the test App, stack fixtures and the validation-report reader used by the specs
 .github/workflows/   checks.yml, pull-request.yml, deploy.yml, and the rules test that guards them
@@ -404,4 +460,5 @@ docs/                the assignment, per-task design and questions docs, and the
 - `docs/phase-1/task-1.5-design.md` and `task-1.5-questions.md`: the GitHub Actions pipeline
 - `docs/phase-2/task-2.1-design.md` and `task-2.1-questions.md`: RDS for MySQL, the secret, TLS, the pool
 - `docs/phase-2/task-2.2-design.md` and `task-2.2-questions.md`: the schema, the ERD, keys, pointers, delete rules
+- `docs/phase-2/task-2.3-design.md` and `task-2.3-questions.md`: migrations, the one-off task, the lock, the backward-compatible strategy
 - `docs/architecture.md`: the environment as deployed, updated by every task that changes it

@@ -1,10 +1,10 @@
 # Architecture
 
-The Commerce Intelligence environment as deployed: stage `dev`, region `eu-north-1`, five
+The Commerce Intelligence environment as deployed: stage `dev`, region `eu-north-1`, six
 CloudFormation stacks defined with AWS CDK in `infra/`. This file describes what runs; the design
 doc of each task records why it is shaped that way. It is updated as the environment grows.
 
-**Last updated:** 2026-10-28, Task 2.1.
+**Last updated:** 2026-11-01, Task 2.3.
 
 ## 1. The network
 
@@ -84,7 +84,8 @@ because the load balancer keeps them for 60 s.
 ## 3. The delivery path
 
 Two GitHub Actions workflows and two IAM roles. A pull request runs the checks and shows `cdk diff`;
-a merge to `main` builds, pushes, deploys and checks the API. Every run logs in with GitHub's OIDC
+a merge to `main` builds, pushes, deploys the delivery and migration stacks, runs the migration
+task and waits for it, deploys every stack and checks the API. Every run logs in with GitHub's OIDC
 token; no access key exists. The image is tagged with the commit SHA; a rollback is the same deploy
 with an older tag, started from the Actions tab.
 
@@ -92,19 +93,22 @@ with an older tag, started from the Actions tab.
 flowchart LR
     subgraph github["GitHub Actions"]
         pr["pull-request.yml<br/>checks / app, checks / infra, docker, diff"]
-        merge["deploy.yml on a merge to main<br/>checks, build, deploy"]
+        merge["deploy.yml on a merge to main<br/>checks, build, migrate, deploy"]
         button["deploy.yml from the button<br/>imageTag = an older SHA, straight to deploy"]
     end
     subgraph delivery["delivery stack"]
         oidc["OIDC provider<br/>token.actions.githubusercontent.com, audience sts.amazonaws.com"]
         prrole["pull request role<br/>sub = repo:…:pull_request<br/>may assume the bootstrap lookup role"]
-        deployrole["deploy role<br/>sub = repo:…:ref:refs/heads/main<br/>may assume the bootstrap deploy, file-publishing and lookup roles; pull and push on ECR"]
+        deployrole["deploy role<br/>sub = repo:…:ref:refs/heads/main<br/>may assume the bootstrap deploy, file-publishing and lookup roles; pull and push on ECR;<br/>run the migration task, watch it, pass its roles, read its log"]
     end
     ecr[("ECR commerce-intelligence-dev<br/>immutable tags, image = commit SHA")]
     cfn["CloudFormation<br/>through the bootstrap roles"]
     net["network stack"]
     reg["registry stack"]
     del["delivery stack"]
+    mig["migration stack<br/>task definition names repository:SHA<br/>no port, blocking logs"]
+    migtask["one-off Fargate task, group app<br/>node dist/database/migrate.js<br/>GET_LOCK, apply, record; exit 0 or the run stops"]
+    db[("RDS MySQL")]
     app["app stack<br/>task definition names repository:SHA"]
     api(("api.commerce-intelligence.click<br/>/health and /ready"))
     pr -->|"OIDC token"| oidc
@@ -114,11 +118,17 @@ flowchart LR
     oidc --> deployrole
     prrole -->|"cdk diff --method template, posted as one comment"| cfn
     deployrole -->|"buildx linux/arm64, push"| ecr
+    deployrole -->|"cdk deploy delivery and migration -c imageTag=SHA"| cfn
+    deployrole -->|"ecs run-task, describe-tasks until STOPPED, logs get-log-events"| migtask
     deployrole -->|"cdk deploy --all --require-approval never -c imageTag=SHA"| cfn
     cfn --> net
     cfn --> reg
     cfn --> del
+    cfn --> mig
     cfn --> app
+    mig -.->|"defines"| migtask
+    migtask -.->|"pulls"| ecr
+    migtask -->|"TCP 3306, TLS"| db
     app -.->|"pulls"| ecr
     merge -.->|"curl from outside, six tries"| api
     button -.->|"curl from outside, six tries"| api
@@ -126,8 +136,10 @@ flowchart LR
 
 The trust rules name the repository by its immutable identity (`owner@id/name@id`) with
 `StringEquals`, so neither a recycled name nor another branch can assume a role. What a run may do
-directly is narrow; what a template deployed on `main` may do is whatever CloudFormation's execution
-role allows, which is administrator by default. The guards are the ones in the README's procedure:
+directly is narrow: the bootstrap roles, pull and push on ECR, and, on the migration stack's own
+resources, start the task, watch it, pass its two roles and read its log. What a template deployed
+on `main` may do is whatever CloudFormation's execution role allows, which is administrator by
+default. The guards are the ones in the README's procedure:
 only `main` gets the deploy role, `main` changes through a reviewed pull request, and the pull
 request shows the diff with IAM changes marked.
 
@@ -171,22 +183,24 @@ the task; a deploy whose new task never becomes healthy rolls back.
 RDS installs 8.4 patch releases itself in the maintenance window, Sunday 03:00–04:00 UTC, with a
 restart of a few minutes. Three locks stand between a command and the data: the stack's termination
 protection, the server's deletion protection, and the final snapshot taken if both are turned off
-and the server is deleted anyway. No path for a person into the database exists yet; the app and,
-from Task 2.3, the migration task are its only clients.
+and the server is deleted anyway. No path for a person into the database exists yet; the app and
+the migration task are its only clients.
 
 ## 5. The stacks
 
-| Stack                                | Holds                                                                                                                           | Depended on by                                 | Termination protection                        |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | --------------------------------------------- |
-| `commerce-intelligence-dev-network`  | VPC, subnets, route tables, Internet Gateway, NAT instance, S3 endpoint, the four security groups, the reject flow log          | the data and app stacks, weakly                | on                                            |
-| `commerce-intelligence-dev-data`     | the parameter group, the admin secret and its attachment, the subnet group, the server                                          | the app stack, weakly                          | on                                            |
-| `commerce-intelligence-dev-registry` | the ECR repository, retained on delete                                                                                          | the app and delivery stacks, weakly            | on                                            |
-| `commerce-intelligence-dev-delivery` | the GitHub OIDC provider, the pull request role, the deploy role                                                                | nothing; GitHub reads its outputs as variables | on                                            |
-| `commerce-intelligence-dev-app`      | cluster, log group, task definition and its two roles, service, load balancer, listeners, target group, certificate, DNS record | nothing                                        | off: the stack removed on purpose for a pause |
+| Stack                                 | Holds                                                                                                                                    | Depended on by                                 | Termination protection                                   |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------- |
+| `commerce-intelligence-dev-network`   | VPC, subnets, route tables, Internet Gateway, NAT instance, S3 endpoint, the four security groups, the reject flow log                   | the data, migration and app stacks, weakly     | on                                                       |
+| `commerce-intelligence-dev-data`      | the parameter group, the admin secret and its attachment, the subnet group, the server                                                   | the migration and app stacks, weakly           | on                                                       |
+| `commerce-intelligence-dev-registry`  | the ECR repository, retained on delete                                                                                                   | the migration, app and delivery stacks, weakly | on                                                       |
+| `commerce-intelligence-dev-migration` | the migration task definition and its two roles, the log group `/commerce-intelligence/dev/migration`, the outputs the deploy step reads | the delivery stack, weakly                     | off: redeployed on every run, removed with the app stack |
+| `commerce-intelligence-dev-delivery`  | the GitHub OIDC provider, the pull request role, the deploy role                                                                         | nothing; GitHub reads its outputs as variables | on                                                       |
+| `commerce-intelligence-dev-app`       | cluster, log group, task definition and its two roles, service, load balancer, listeners, target group, certificate, DNS record          | nothing                                        | off: the stack removed on purpose for a pause            |
 
-The data, app and delivery stacks read the others through weak references: CloudFormation does not
-enforce the dependency, the diff review and termination protection do. The whole environment costs
-about 59 USD a month; the pipeline adds nothing on the AWS side; the table is in the README.
+The data, migration, app and delivery stacks read the others through weak references:
+CloudFormation does not enforce the dependency, the diff review and termination protection do. The
+whole environment costs about 59 USD a month; the pipeline adds nothing on the AWS side; the table
+is in the README.
 
 ## Where the reasons are
 
@@ -195,4 +209,5 @@ about 59 USD a month; the pipeline adds nothing on the AWS side; the table is in
 - `task-1.4-design.md`: state, termination protection, the pinned image, how changes are reviewed.
 - `task-1.5-design.md`: the pipeline, the two roles, the diff comment, the rollback.
 - `task-2.1-design.md`: the database, the secret, TLS, the pool, readiness.
+- `task-2.3-design.md`: the migrations, the one-off task, the lock, the sixth stack, the deploy step.
 - `README.md`: the procedures: deploy, review and apply, tear-down.
