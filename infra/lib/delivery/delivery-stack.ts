@@ -7,10 +7,12 @@ import { applyProjectTags } from '../project-tags.js';
 import { createDeployRole } from './create-deploy-role.js';
 import { createGithubOidcProvider } from './create-github-oidc-provider.js';
 import { createPullRequestRole } from './create-pull-request-role.js';
+import type { MigrationTask } from './grant-migration-run.js';
 
 export type DeliveryStackProps = {
   readonly config: StageConfig;
   readonly repository: ecr.IRepository;
+  readonly migration: MigrationTask;
 };
 
 export class DeliveryStack extends Stack {
@@ -28,6 +30,7 @@ export class DeliveryStack extends Stack {
     const deployRole = createDeployRole(this, {
       provider,
       repository: props.repository,
+      migration: props.migration,
       config: props.config,
     });
     new CfnOutput(this, 'PullRequestRoleArn', {

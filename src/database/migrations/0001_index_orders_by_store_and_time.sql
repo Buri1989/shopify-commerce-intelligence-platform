@@ -1,0 +1,1 @@
+CREATE INDEX `orders_store_id_placed_at_idx` ON `orders` (`store_id`,`placed_at`);

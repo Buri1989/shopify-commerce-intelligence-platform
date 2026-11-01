@@ -1,21 +1,25 @@
 # Task 1.3 — Questions to investigate
 
-Short answers. Task 1.3 asks for one investigation, EC2 against ECS Fargate against Lambda
-against EKS, and the general rules ask seven questions of each decision. Deployed 2026-10-20.
-Alternatives and trade-offs are in `task-1.3-design.md`.
+Short answers in plain words, so that they can be explained to the next person. Task 1.3 asks
+for one investigation, EC2 against ECS Fargate against Lambda against EKS, and the general rules
+ask seven questions of each decision. Deployed 2026-10-20. Alternatives and trade-offs are in
+`task-1.3-design.md`.
 
 ## 1. EC2, ECS Fargate, Lambda, EKS: when each fits
 
-- **EC2**: a virtual machine. You patch the OS, plan capacity, replace dead hosts. Cheapest per
-  core at high use. Runs anything, GPUs included.
-- **ECS Fargate**: a container with no host you can see. You describe the task; AWS runs and
-  patches under it, bills per vCPU-second. No GPUs, no privileged mode, 30 to 60 seconds to
-  start, about a fifth dearer than EC2 at full use.
-- **Lambda**: a function per event, billed per millisecond, free while idle. At most 15 minutes
-  a run, nothing persists, cold starts. The Phase 3 workers and Phase 4 queue consumers do not
-  fit.
-- **EKS**: managed Kubernetes. About 73 USD a month for the control plane, plus nodes, ingress,
-  autoscalers and a yearly upgrade. Pays off with many services or teams.
+Four ways to run code on AWS:
+
+- **EC2**: a virtual machine. We would install and patch the operating system, plan how much
+  capacity to buy, and replace a machine that dies. The cheapest per core when it is busy all
+  the time. It runs anything, GPUs included.
+- **ECS Fargate**: a container with no machine we can see. We describe the task, the container
+  and its size; AWS runs it, patches what is under it, and bills per vCPU-second. No GPUs, no
+  privileged mode, 30 to 60 seconds to start, about a fifth dearer than EC2 when fully used.
+- **Lambda**: a function that runs once per event, billed per millisecond, free while idle. A
+  run may last at most 15 minutes, nothing is kept between runs, and the first call after a
+  pause is slow, a cold start. The Phase 3 workers and the Phase 4 queue consumers do not fit.
+- **EKS**: managed Kubernetes. About 73 USD a month for the control plane, plus the nodes, an
+  ingress, autoscalers and a yearly upgrade. It pays off with many services or many teams.
 
 |                | EC2                 | ECS Fargate         | Lambda             | EKS                   |
 | -------------- | ------------------- | ------------------- | ------------------ | --------------------- |
@@ -29,65 +33,77 @@ This project: one long-lived HTTP service, workers later, no Kubernetes team, no
 
 ## 2. ECS Fargate, the seven questions
 
-- **Problem**: keep a container running behind a load balancer, replace it when it dies, roll
-  out without a gap, own no server.
-- **Why**: the spec names it, and §1 says why it fits.
-- **Alternatives**: the three above. Lambda lost on the Phase 3 and 4 workloads.
-- **Limitations**: no GPU or privileged mode; tens of seconds to boot; CPU and memory from a
-  fixed menu; about 8 USD a month idle; image pull and logs depend on the task's network path.
-- **When differently**: a webhook receiver alone: Lambda. A dozen services and a platform
-  team: EKS. Full cores all month or special hardware: EC2.
-- **What could go wrong**: a task that cannot reach the registry stays `PENDING` and dies (seen
-  on the first deploy); a task healthy but misbehaving; subnets out of addresses; a log outage
-  freezing the app (non-blocking driver); keep-alive 502s (fixed in the app).
-- **Under load**: one task until 0.25 vCPU saturates, then a scaling policy (Phase 6) adds tasks
-  across zones. The NAT instance's bandwidth is the first outbound limit.
+- **What problem does it solve?** Keep a container running behind a load balancer, replace it
+  when it dies, roll out a new version without a gap, and own no server.
+- **Why did we choose it?** The spec names it, and §1 says why it fits.
+- **What alternatives did we consider?** The three above. Lambda lost on the Phase 3 and 4
+  workloads.
+- **What are its limitations?** No GPU or privileged mode; tens of seconds to boot; CPU and
+  memory come from a fixed menu of sizes; about 8 USD a month while idle; pulling the image and
+  writing logs depend on the task's network path.
+- **When would we choose differently?** A webhook receiver alone: Lambda. A dozen services and
+  a platform team: EKS. Full cores all month, or special hardware: EC2.
+- **What could go wrong in production?** A task that cannot reach the image registry stays
+  `PENDING` and dies; we saw this on the first deploy. A task that passes the health check but
+  misbehaves. Subnets running out of addresses. A log outage freezing the app, which the
+  non-blocking log driver prevents. 502 errors from the keep-alive timeout, fixed in the app.
+- **How does it behave under increased load?** One task until its quarter of a vCPU is
+  saturated; then a scaling policy, Phase 6, adds tasks across the zones. The NAT instance's
+  bandwidth is the first limit on outgoing traffic.
 
 ## 3. The image path: ECR, SHA tags, the tag as a deploy argument
 
-- **Problem**: get the image to the runner and know which code runs.
-- **Choice**: a project ECR repository with immutable tags, every image tagged with its commit,
-  `cdk deploy -c imageTag=<sha>`.
-- **Alternatives**: CDK building at deploy time (bootstrap repository, content hash); the
-  pipeline writing task definitions itself (two writers, `cdk diff` stops telling the truth).
-- **Limitations**: the first deploy needs a manual push; a wrong tag fails as "not found".
-- **When differently**: a monorepo with twenty images would stamp the tag into a parameter.
-- **In production**: a tag never pushed fails at start and the circuit breaker rolls back; the
-  lifecycle rule keeps twenty images.
-- **Under load**: irrelevant; layers come through the S3 endpoint.
+- **Problem**: get the image, the packaged app, to the machine that runs it, and know which code
+  is running.
+- **Choice**: a project repository in ECR, AWS's image registry, with tags that cannot be
+  overwritten; every image tagged with the commit it was built from; the deploy told which one
+  to run with `cdk deploy -c imageTag=<sha>`.
+- **Alternatives**: CDK building the image at deploy time, into its bootstrap repository under
+  a content hash; the pipeline writing task definitions itself, which makes two writers, so
+  `cdk diff` stops telling the truth.
+- **Limitations**: the first deploy needs a manual push; a wrong tag fails with "not found".
+- **When differently**: a monorepo with twenty images would stamp the tag into a parameter
+  instead.
+- **In production**: a tag that was never pushed fails at start and the circuit breaker rolls
+  back; the lifecycle rule keeps the last twenty images.
+- **Under load**: not affected; the image layers come through the S3 endpoint.
 
 ## 4. HTTPS: an Application Load Balancer with an ACM certificate
 
-- **Problem**: one public address, TLS, routing to tasks that come and go.
-- **Choice**: internet-facing ALB in the public subnets, HTTP redirects to HTTPS, free ACM
-  certificate validated through Route 53, target group checks `/ready` every 15 s.
-- **Alternatives**: NLB (TCP only, TLS in the app); CloudFront (an extra service); a public IP
-  per task (no private tier).
-- **Limitations**: the largest fixed cost, about 25 USD a month; needs a domain.
-- **When differently**: many APIs share one balancer with host rules; an internal service gets
-  an internal balancer.
-- **In production**: the certificate renews while the validation record stays in the zone.
-  Deregistration delay and the app's drain window decide whether a deploy drops requests; none
-  dropped.
+- **Problem**: one public address, TLS, and routing to tasks that come and go.
+- **Choice**: an internet-facing Application Load Balancer in the public subnets; HTTP redirects
+  to HTTPS; a free certificate from ACM, AWS's certificate service, validated through Route 53;
+  the target group checks `/ready` every 15 seconds.
+- **Alternatives**: a Network Load Balancer (TCP only, so TLS would be done in the app);
+  CloudFront (an extra service); a public IP per task (no private tier).
+- **Limitations**: the largest fixed cost, about 25 USD a month; it needs a domain.
+- **When differently**: many APIs would share one balancer with host rules; an internal service
+  would get an internal balancer.
+- **In production**: the certificate renews itself while the validation record stays in the
+  zone. The deregistration delay and the app's drain window decide whether a deploy drops
+  requests; none dropped.
 - **Under load**: the balancer scales itself; the app needs more tasks.
 
 ## 5. Outbound traffic: a NAT instance, and what the first deploy taught
 
-- **Problem**: private tasks must reach ECR, CloudWatch and Shopify; nothing reaches them.
-- **Choice**: one `t4g.micro`, Amazon Linux 2023, CDK's NAT provider, no SSH, IMDSv2, Session
-  Manager, a group that accepts VPC traffic only and sends HTTPS and HTTP out.
+- **Problem**: the private tasks must reach ECR, CloudWatch and Shopify; nothing must reach
+  them.
+- **Choice**: one `t4g.micro` server with Amazon Linux 2023, made by CDK's NAT provider; no
+  SSH; IMDSv2, the safer way for a server to read its own metadata; Session Manager for access;
+  a security group that accepts traffic from the VPC only and sends HTTPS and HTTP out.
 - **Alternatives**: the managed gateway from Task 1.2, the production answer, about 37 USD
   against 10.5.
-- **Limitations**: one machine; if it dies, outbound stops until the network stack redeploys,
-  about ten minutes. Thin bandwidth. An OS to patch.
-- **When differently**: the first real user, or when an outage costs more than 27 USD a month.
-  Flip the provider back in `create-vpc.ts`.
+- **Limitations**: one machine; if it dies, outgoing traffic stops until the network stack is
+  redeployed, about ten minutes. Thin bandwidth. An operating system to patch.
+- **When differently**: at the first real user, or when an outage costs more than the 27 USD a
+  month saved. The switch back is the provider in `create-vpc.ts`.
 
-**What went wrong.** The design said `t4g.nano`. The first deploy hung: the task could not
-reach ECR. The boot log showed the package install killed for lack of memory, so the masquerade
-rule was never written. `t4g.micro` has the memory. Second lesson: CloudFormation applies a type
-change by stop and start, and boot setup runs only on a fresh instance. The instance's logical
-id now carries its type, so a size change replaces it. Both are tests now.
+**What went wrong.** The design said `t4g.nano`. The first deploy hung: the task could not reach
+ECR. The boot log of the server showed the package install killed for lack of memory, so the
+rule that rewrites addresses was never written. `t4g.micro` has the memory. Second lesson:
+CloudFormation applies a change of instance type by stopping and starting the machine, and the
+boot setup runs only on a fresh machine. The instance's logical id now carries its type, so a
+size change replaces the machine. Both are tests now.
 
 ## 6. The request path, as deployed
 
@@ -110,34 +126,36 @@ client ──HTTPS──▶ api.commerce-intelligence.click
 
 ## Why we picked what we picked
 
-- **ECS Fargate**: the spec names it; fits one service with workers to come. See §1 and §2.
-- **ECR, immutable SHA tags, tag as a deploy argument**: CDK stays the one description of what
-  runs; rollback is the same command with an older tag. Proven 2026-10-20, no dropped request.
-- **Three stacks**: the registry outlives the service; the network changes on its own schedule;
-  the app changes every deploy.
-- **Weak cross-stack references**: no "export in use" deadlock; `cdk diff` on the network stack
-  is the review.
-- **1.2 security groups imported immutable**: CDK would otherwise write duplicate rules; a test
-  guards that the app stack holds no rule.
-- **NAT instance replacing the gateway**: Boris's call once the gateway was half the bill. The
-  gateway stays the production answer. See §5.
-- **`t4g.micro`, replaced on a type change**: learned at deploy. See §5.
-- **ARM containers**: the Mac that builds is ARM, and Fargate on ARM is cheaper.
-- **0.25 vCPU, 0.5 GB, one task, on demand**: the smallest size with room; Spot would muddy the
-  rollback.
-- **Two scoped IAM roles**: the execution role pulls one repository and writes one log group;
-  the task role is empty for later phases.
-- **Non-blocking log driver**: a CloudWatch outage must not freeze the app.
-- **Health check on `/ready`, 15 s, healthy after 2, unhealthy after 3, 30 s deregistration**:
-  the defaults make a deploy wait minutes.
-- **Rolling 100/200 with the circuit breaker**: the new task is healthy before the old stops; a
-  bad image rolls back without a human.
-- **Keep-alive above the balancer's idle timeout, one trusted proxy hop**: avoids the classic
-  502; the client address survives for Phase 3 rate limits.
-- **Route 53 domain, `.click`, auto-renew off**: cheapest at 3 USD a year; certificate and
-  record created by the deploy.
-- **No wildcard certificate, access logs or deletion protection**: production settings,
-  Phase 6.
-- **Test fixtures read `cdk.json`**: a bare test App has no feature flags; tests were green on
-  the wrong templates.
-- **Deploy by hand until Task 1.5**: the pipeline automates something known to work.
+- **ECS Fargate.** The spec names it; it fits one service with workers to come. §1 and §2.
+- **ECR, immutable SHA tags, the tag as a deploy argument.** CDK stays the one description of
+  what runs; a rollback is the same command with an older tag. Proven 2026-10-20, no dropped
+  request.
+- **Three stacks.** The registry outlives the service; the network changes on its own schedule;
+  the app changes on every deploy.
+- **Weak cross-stack references.** A stack reads another stack's values without CloudFormation
+  locking the two together, so there is no "export in use" deadlock; `cdk diff` on the network
+  stack is the review.
+- **The 1.2 security groups imported as immutable.** Otherwise CDK would write duplicate rules;
+  a test guards that the app stack holds no rule.
+- **The NAT instance replacing the gateway.** Boris's call once the gateway was half the bill.
+  The gateway stays the production answer. §5.
+- **`t4g.micro`, replaced on a type change.** Learned at deploy. §5.
+- **ARM containers.** The Mac that builds is ARM, and Fargate on ARM is cheaper.
+- **0.25 vCPU, 0.5 GB, one task, on demand.** The smallest size with room; Spot pricing would
+  muddy the rollback.
+- **Two scoped IAM roles.** The execution role, which ECS uses to start the task, may pull one
+  repository and write one log group; the task role, which the app itself uses, is empty until
+  later phases.
+- **The non-blocking log driver.** A CloudWatch outage must not freeze the app.
+- **Health check on `/ready`, every 15 s, healthy after 2, unhealthy after 3, 30 s
+  deregistration.** The defaults make a deploy wait minutes.
+- **Rolling deploy 100/200 with the circuit breaker.** The new task is healthy before the old
+  one stops; a bad image rolls back without a human.
+- **Keep-alive above the balancer's idle timeout, one trusted proxy hop.** Avoids the classic
+  502; the client's address survives for the Phase 3 rate limits.
+- **A Route 53 domain, `.click`, auto-renew off.** Cheapest at 3 USD a year; the certificate and
+  the DNS record are created by the deploy.
+- **No wildcard certificate, access logs or deletion protection.** Production settings, Phase 6.
+- **Test fixtures read `cdk.json`.** A bare test App has no feature flags; the tests were green
+  on the wrong templates.
+- **Deploy by hand until Task 1.5.** The pipeline automates something known to work.

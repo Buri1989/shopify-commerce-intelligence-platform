@@ -1,0 +1,1 @@
+ALTER TABLE `orders` MODIFY COLUMN `placed_on` date NOT NULL;

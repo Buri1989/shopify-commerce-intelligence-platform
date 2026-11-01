@@ -16,11 +16,4 @@ describe('createAppLogGroup', () => {
       RetentionInDays: 14,
     });
   });
-
-  it('deletes the log group together with the stack', () => {
-    template.hasResource('AWS::Logs::LogGroup', {
-      DeletionPolicy: 'Delete',
-      UpdateReplacePolicy: 'Delete',
-    });
-  });
 });

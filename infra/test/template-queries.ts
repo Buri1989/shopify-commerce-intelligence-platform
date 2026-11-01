@@ -144,6 +144,19 @@ export function matchStackOutput(
   });
 }
 
+// The same reference for vitest's own matchers, where a CDK Matcher cannot go.
+export function expectStackOutput(
+  stackName: string,
+  outputNamePattern: string,
+): unknown {
+  return expect.objectContaining({
+    'Fn::GetStackOutput': expect.objectContaining({
+      StackName: stackName,
+      OutputName: expect.stringMatching(outputNamePattern),
+    }),
+  });
+}
+
 function findRouteTableIdOfSubnet(
   template: Template,
   subnetId: string,

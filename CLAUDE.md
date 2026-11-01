@@ -197,3 +197,45 @@ full reference. Apply them while writing, not after. The rules that come up most
   `test/table-queries.ts`, no database. `erd.spec.ts` reads the Mermaid ERD out of §5.1 of the
   design doc with `test/erd.ts`, maps the tables to the same shape with `test/erd-of-tables.ts`
   and compares both ways, columns in order: a table change updates the drawing or the gate fails.
+
+## Conventions from Task 2.3
+
+- Migrations are the numbered SQL files in `src/database/migrations/`, with drizzle-kit's journal
+  and snapshots under `meta/`; `drizzle.config.ts` points at the schema and that folder. A table
+  change starts in `src/database/schema/` and is followed by
+  `npm run migrate:generate -- --name <what_changed>`; a change to rows, such as a fill, is a
+  hand-written file from `-- --custom --name <what_changed>`. One change per file, forward only,
+  no undo files. `migrations-match-schema.spec.ts` fails `npm test` when the table files differ
+  from the latest snapshot.
+- Every file keeps the previous image working: add first, remove in a later deploy, and make a
+  column required in three files (add it optional, fill it, require it), as `orders.placed_on` did.
+- The script is `src/database/migrate.ts`: `npm run migrate` locally (it reads `.env`),
+  `node dist/database/migrate.js` in the image. One plain connection from
+  `resolveConnectionOptions`, the pool's settings minus `DB_POOL_SIZE`; the MySQL named lock
+  `migrations:<DB_NAME>` taken with no wait, `MigrationLockHeldError` when another run holds it;
+  Drizzle's migrator; a log line with `applied`; exit code 1 on any failure. `MIGRATIONS_FOLDER`
+  is a relative path on purpose, and the Dockerfile copies the folder to the same path in the
+  image.
+- Six stacks: `-migration` joins the five. It takes `TaskStackProps`, the same props as the app
+  stack, and carries no termination protection. What both task definitions share lives in
+  `infra/lib/app/`: `resolveClusterName`, `resolveContainerEnvironment`, `resolveContainerSecrets`,
+  `createEcsTaskRole`, `resolveTaskPlatform`, `createStageLogGroup`. The migration container has
+  no port mapping and logs in blocking mode; the app container keeps non-blocking logging.
+- The deploy role's rights on the migration stack come from `grantMigrationRun` in
+  `infra/lib/delivery/`: run the task, describe the cluster's tasks, pass its two roles, read its
+  log group, each on that stack's own resources. Verbs: `grant*` adds rights to a role, CDK's own
+  verb; `expect*` in `infra/test/` is a vitest asymmetric matcher (`expectStackOutput`), for the
+  places a CDK `Matcher` cannot go.
+- The deploy job deploys the delivery and migration stacks first with `--outputs-file`, starts the
+  task with `aws ecs run-task` from those outputs, polls `describe-tasks` until `STOPPED`, prints
+  the task's log, fails on a non-zero exit code, and only then deploys all stacks. `aws ecs run-task`
+  appears in no other step or workflow. `findStep(job, name)` in `read-workflow-file.ts` looks a
+  step up by its name for the rules.
+- E2E: `migrations.e2e-spec.ts` runs the chain in its own database, `migrations_e2e`, dropped and
+  created per test through the root login that `global-setup.ts` provides as `rootPassword`.
+  Helpers in `test/`: `migration-chain.ts` (`createFreshDatabase`, `connectAsRoot`,
+  `holdMigrationLock`, `writeChainPrefix`), `information-schema.ts` (`read*` from
+  `information_schema`), `order-rows.ts`, `migration-journal.ts`, `database-settings.ts` (the
+  settings objects every database spec shares), `fake-connection.ts`. Database helpers take a
+  `QueryConnection`, `Pick<Connection, 'query'>`, so a fake is one `vi.fn()`.
+- Locally: `docker compose up -d`, then `npm run migrate`, then `npm run dev`.

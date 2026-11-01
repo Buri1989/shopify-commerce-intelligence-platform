@@ -1,4 +1,5 @@
 import {
+  findStep,
   listExternalActionsAsWritten,
   readWorkflowFile,
   type Workflow,
@@ -79,6 +80,17 @@ describe.each(['checks.yml', 'pull-request.yml', 'deploy.yml'])(
       expect(setupNodeSteps.length).toBeGreaterThan(0);
       for (const step of setupNodeSteps) {
         expect(step.with?.['node-version-file']).toBe('.nvmrc');
+      }
+    });
+
+    it('starts an ECS task from the deploy job of deploy.yml and from nowhere else', () => {
+      for (const [jobName, job] of Object.entries(workflow.jobs)) {
+        const startsATask = (job.steps ?? []).some(
+          (step) => step.run?.includes('aws ecs run-task') ?? false,
+        );
+        expect(startsATask, jobName).toBe(
+          fileName === 'deploy.yml' && jobName === 'deploy',
+        );
       }
     });
   },
@@ -202,5 +214,49 @@ describe('deploy.yml', () => {
     expect(deployCommands).toContain('/health');
     expect(deployCommands).toContain('/ready');
     expect(deployCommands).toContain('GITHUB_STEP_SUMMARY');
+  });
+
+  it('checks the image, deploys the two stacks the run needs, runs the migrations, deploys all stacks, checks the API and writes the summary, in that order', () => {
+    const stepNames = (workflow.jobs.deploy.steps ?? [])
+      .map((step) => step.name)
+      .filter((name) => name !== undefined);
+    expect(stepNames).toEqual([
+      'Check that the image exists before touching any stack',
+      'Deploy the delivery and migration stacks',
+      'Run the migrations',
+      'Deploy all stacks',
+      'Check /health and /ready from outside',
+      'Write the run summary',
+    ]);
+  });
+
+  it('deploys the delivery and migration stacks with the image tag and keeps their outputs for the run step', () => {
+    const { run } = findStep(
+      workflow.jobs.deploy,
+      'Deploy the delivery and migration stacks',
+    );
+    expect(run).toContain(
+      'npm run -s deploy -- commerce-intelligence-dev-delivery commerce-intelligence-dev-migration --require-approval never',
+    );
+    expect(run).toContain(
+      '--outputs-file "$RUNNER_TEMP/migration-outputs.json"',
+    );
+    expect(run).toContain('-c imageTag="$IMAGE_TAG"');
+  });
+
+  it('starts the task in the private subnets without a public IP, waits until it stops, prints its log and fails on any exit code but 0', () => {
+    const { run } = findStep(workflow.jobs.deploy, 'Run the migrations');
+    expect(run).toContain('aws ecs run-task');
+    expect(run).toContain('assignPublicIp=DISABLED');
+    expect(run).toContain('aws ecs describe-tasks');
+    expect(run).toContain('STOPPED');
+    expect(run).toContain('aws logs get-log-events');
+    expect(run).toContain('.containers[0].exitCode');
+    expect(run).toContain('exit 1');
+  });
+
+  it('reports the migration result in the run summary', () => {
+    const { run } = findStep(workflow.jobs.deploy, 'Write the run summary');
+    expect(run).toContain('| Migrations |');
   });
 });

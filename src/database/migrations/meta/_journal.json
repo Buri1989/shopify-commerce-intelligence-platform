@@ -1,0 +1,41 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1793523564130,
+      "tag": "0000_create_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1793526098733,
+      "tag": "0001_index_orders_by_store_and_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1793526456483,
+      "tag": "0002_add_orders_placed_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1793526456813,
+      "tag": "0003_fill_orders_placed_on",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1793526457188,
+      "tag": "0004_require_orders_placed_on",
+      "breakpoints": true
+    }
+  ]
+}

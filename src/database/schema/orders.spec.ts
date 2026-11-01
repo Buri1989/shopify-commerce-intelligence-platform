@@ -29,6 +29,7 @@ describe('orders', () => {
       'financial_status',
       'fulfillment_status',
       'placed_at',
+      'placed_on',
       'cancelled_at',
       'created_at',
       'updated_at',
@@ -46,6 +47,7 @@ describe('orders', () => {
       financial_status: 'varchar(32)',
       fulfillment_status: 'varchar(32)',
       placed_at: 'datetime(3)',
+      placed_on: 'date',
       cancelled_at: 'datetime(3)',
       created_at: 'datetime(3)',
       updated_at: 'datetime(3)',
@@ -78,8 +80,13 @@ describe('orders', () => {
     ]);
   });
 
-  it('has no other index', () => {
-    expect(readIndexes(orders)).toEqual([]);
+  it('is read newest first inside a store through one pair index', () => {
+    expect(readIndexes(orders)).toEqual([
+      {
+        name: 'orders_store_id_placed_at_idx',
+        columns: ['store_id', 'placed_at'],
+      },
+    ]);
   });
 
   it('allows null in fulfillment_status and cancelled_at', () => {

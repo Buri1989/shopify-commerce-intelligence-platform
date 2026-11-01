@@ -2,12 +2,15 @@ import type { Template } from 'aws-cdk-lib/assertions';
 import { matchBootstrapRoleArn } from '../../test/match-bootstrap-role-arn.js';
 import { synthesizeDeliveryStack } from '../../test/synthesize-delivery-stack.js';
 import {
+  expectStackOutput,
   findOnlyResourceId,
   findPolicyStatementsOfRole,
   findRoleId,
   readResourceProperties,
 } from '../../test/template-queries.js';
 import { resolveStageConfig } from '../config/stage-config.js';
+
+const MIGRATION_STACK = 'commerce-intelligence-dev-migration';
 
 describe('createDeployRole', () => {
   let template: Template;
@@ -82,8 +85,44 @@ describe('createDeployRole', () => {
     });
   });
 
+  it("may start the migration task, watch it, pass its two roles and read its log, each on the migration stack's own resources", () => {
+    const statements = findPolicyStatementsOfRole(template, roleId);
+    expect(statements).toContainEqual({
+      Action: 'ecs:RunTask',
+      Effect: 'Allow',
+      Resource: expectStackOutput(MIGRATION_STACK, 'TaskDefinition'),
+    });
+    expect(statements).toContainEqual({
+      Action: 'ecs:DescribeTasks',
+      Effect: 'Allow',
+      Resource: {
+        'Fn::Join': [
+          '',
+          [
+            'arn:aws:ecs:eu-north-1:',
+            { Ref: 'AWS::AccountId' },
+            ':task/commerce-intelligence-dev/*',
+          ],
+        ],
+      },
+    });
+    expect(statements).toContainEqual({
+      Action: 'iam:PassRole',
+      Effect: 'Allow',
+      Resource: [
+        expectStackOutput(MIGRATION_STACK, 'TaskExecutionRole'),
+        expectStackOutput(MIGRATION_STACK, 'TaskRole'),
+      ],
+    });
+    expect(statements).toContainEqual({
+      Action: ['logs:DescribeLogStreams', 'logs:GetLogEvents'],
+      Effect: 'Allow',
+      Resource: expectStackOutput(MIGRATION_STACK, 'MigrationLogGroup'),
+    });
+  });
+
   it('has no other permission', () => {
-    expect(findPolicyStatementsOfRole(template, roleId)).toHaveLength(3);
+    expect(findPolicyStatementsOfRole(template, roleId)).toHaveLength(7);
     expect(
       readResourceProperties(template, roleId).ManagedPolicyArns,
     ).toBeUndefined();
