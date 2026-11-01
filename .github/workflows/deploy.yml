@@ -83,6 +83,34 @@ jobs:
             echo "No image tagged $IMAGE_TAG in $ECR_REPOSITORY"
             exit 1
           fi
+      - name: Deploy the delivery and migration stacks
+        working-directory: infra
+        env:
+          CDK_DISABLE_VERSION_CHECK: '1'
+        run: npm run -s deploy -- commerce-intelligence-dev-delivery commerce-intelligence-dev-migration --require-approval never --progress events --no-notices --outputs-file "$RUNNER_TEMP/migration-outputs.json" -c imageTag="$IMAGE_TAG"
+      - id: migrate
+        name: Run the migrations
+        run: |
+          read_output() { jq -r --arg name "$1" '."commerce-intelligence-dev-migration"[$name]' "$RUNNER_TEMP/migration-outputs.json"; }
+          cluster=$(read_output ClusterName)
+          log_group=$(read_output LogGroupName)
+          started=$(aws ecs run-task --cluster "$cluster" --task-definition "$(read_output TaskDefinitionArn)" --launch-type FARGATE --network-configuration "awsvpcConfiguration={subnets=[$(read_output SubnetIds)],securityGroups=[$(read_output SecurityGroupId)],assignPublicIp=DISABLED}" --started-by "deploy-$GITHUB_RUN_ID" --output json)
+          task_arn=$(jq -r '.tasks[0].taskArn // empty' <<< "$started")
+          if [ -z "$task_arn" ]; then
+            echo "No task was started: $(jq -r '.failures[0].reason // "no reason given"' <<< "$started")"
+            exit 1
+          fi
+          echo "Started $task_arn"
+          until [ "$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" --query 'tasks[0].lastStatus' --output text)" = "STOPPED" ]; do
+            sleep 10
+          done
+          task=$(aws ecs describe-tasks --cluster "$cluster" --tasks "$task_arn" --query 'tasks[0]')
+          aws logs get-log-events --log-group-name "$log_group" --log-stream-name "migration/migration/${task_arn##*/}" --start-from-head --query 'events[].message' --output json 2>/dev/null | jq -r '.[]' | tee "$RUNNER_TEMP/migration.log"
+          exit_code=$(jq -r '.containers[0].exitCode // empty' <<< "$task")
+          echo "Stopped: $(jq -r '.stoppedReason' <<< "$task"); exit code ${exit_code:-none}"
+          if [ "$exit_code" != "0" ]; then
+            exit 1
+          fi
       - id: deploy
         name: Deploy all stacks
         working-directory: infra
@@ -115,7 +143,16 @@ jobs:
         run: |
           kind="Deploy of commit"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then kind="Rollback to image"; fi
-          log_group=$(jq -r '."commerce-intelligence-dev-app".LogGroupName // empty' "$RUNNER_TEMP/outputs.json" 2>/dev/null | sed 's#/#$252F#g')
+          console_log_group() { jq -r --arg stack "$1" '.[$stack].LogGroupName // empty' "$2" 2>/dev/null | sed 's#/#$252F#g'; }
+          log_group=$(console_log_group commerce-intelligence-dev-app "$RUNNER_TEMP/outputs.json")
+          migration_log_group=$(console_log_group commerce-intelligence-dev-migration "$RUNNER_TEMP/migration-outputs.json")
+          applied=$(jq -r 'select(.applied != null) | .applied' "$RUNNER_TEMP/migration.log" 2>/dev/null | tail -1)
+          case "${{ steps.migrate.outcome }}:$applied" in
+            success:0) migrations="nothing to run" ;;
+            success:?*) migrations="applied $applied" ;;
+            failure:*) migrations="failed" ;;
+            *) migrations="${{ steps.migrate.outcome }}" ;;
+          esac
           {
             echo "## $kind \`$IMAGE_TAG\`"
             echo
@@ -123,6 +160,7 @@ jobs:
             echo "|---|---|"
             echo "| Commit | \`$GITHUB_SHA\` |"
             echo "| Image tag | \`$IMAGE_TAG\` |"
+            echo "| Migrations | $migrations |"
             echo "| Deploy | ${{ steps.deploy.outcome }} |"
             echo "| Health | ${{ steps.health.outcome }} |"
             echo
@@ -134,5 +172,5 @@ jobs:
             echo "|---|---|"
             cat "$RUNNER_TEMP/health.md" 2>/dev/null || echo "| not checked | |"
             echo
-            echo "[CloudFormation](https://$AWS_REGION.console.aws.amazon.com/cloudformation/home?region=$AWS_REGION#/stacks?filteringText=commerce-intelligence-dev) · [Log group](https://$AWS_REGION.console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#logsV2:log-groups/log-group/$log_group)"
+            echo "[CloudFormation](https://$AWS_REGION.console.aws.amazon.com/cloudformation/home?region=$AWS_REGION#/stacks?filteringText=commerce-intelligence-dev) · [Log group](https://$AWS_REGION.console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#logsV2:log-groups/log-group/$log_group) · [Migration log](https://$AWS_REGION.console.aws.amazon.com/cloudwatch/home?region=$AWS_REGION#logsV2:log-groups/log-group/$migration_log_group)"
           } >> "$GITHUB_STEP_SUMMARY"

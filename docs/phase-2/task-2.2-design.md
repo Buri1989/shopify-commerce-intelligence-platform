@@ -387,6 +387,7 @@ erDiagram
         varchar financial_status
         varchar fulfillment_status
         datetime placed_at
+        date placed_on
         datetime cancelled_at
         datetime created_at
         datetime updated_at

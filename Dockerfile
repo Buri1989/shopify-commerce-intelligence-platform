@@ -18,5 +18,7 @@ COPY --from=build --chown=node:node /app/dist ./dist
 # AWS's RDS certificate bundle for the stage's region; the app verifies the
 # server against it when DB_SSL_CA_PATH names it (design §4.5).
 COPY --chown=node:node certs ./certs
+# At its repository path: the migration script reads src/database/migrations.
+COPY --chown=node:node src/database/migrations ./src/database/migrations
 EXPOSE 3000
 CMD ["node", "dist/main.js"]

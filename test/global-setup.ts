@@ -7,6 +7,7 @@ export type TestDatabase = {
   readonly name: string;
   readonly user: string;
   readonly password: string;
+  readonly rootPassword: string;
 };
 
 declare module 'vitest' {
@@ -32,6 +33,7 @@ export async function setup(
     name: container.getDatabase(),
     user: container.getUsername(),
     password: container.getUserPassword(),
+    rootPassword: container.getRootPassword(),
   });
   return async () => {
     await container.stop();

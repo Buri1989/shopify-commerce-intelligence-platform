@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs';
 import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { drizzle } from 'drizzle-orm/mysql2';
 import { createPool, type Pool } from 'mysql2/promise';
 import type { Env } from '../config/env.schema.js';
 import { DATABASE, DATABASE_POOL } from './database.tokens.js';
+import { readCaBundle } from './read-ca-bundle.js';
 import {
   type DatabaseSettings,
   resolvePoolOptions,
@@ -17,9 +17,7 @@ import {
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) =>
         createPool(
-          resolvePoolOptions(readDatabaseSettings(config), (path) =>
-            readFileSync(path, 'utf8'),
-          ),
+          resolvePoolOptions(readDatabaseSettings(config), readCaBundle),
         ),
     },
     {
