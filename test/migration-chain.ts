@@ -5,6 +5,7 @@ import { type Connection, createConnection } from 'mysql2/promise';
 import { inject } from 'vitest';
 import {
   acquireMigrationLock,
+  releaseMigrationLock,
   resolveMigrationLockName,
 } from '../src/database/migration-lock.js';
 import { readJournal } from './migration-journal.js';
@@ -30,10 +31,22 @@ export function connectAsRoot(database?: string): Promise<Connection> {
   });
 }
 
-export async function holdMigrationLock(database: string): Promise<Connection> {
+export interface HeldMigrationLock {
+  release(): Promise<void>;
+}
+
+export async function holdMigrationLock(
+  database: string,
+): Promise<HeldMigrationLock> {
   const connection = await connectAsRoot(database);
-  await acquireMigrationLock(connection, resolveMigrationLockName(database));
-  return connection;
+  const lockName = resolveMigrationLockName(database);
+  await acquireMigrationLock(connection, lockName);
+  return {
+    async release() {
+      await releaseMigrationLock(connection, lockName);
+      await connection.end();
+    },
+  };
 }
 
 export async function writeChainPrefix(

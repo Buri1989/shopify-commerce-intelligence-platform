@@ -91,17 +91,18 @@ describe('the migration chain (e2e)', () => {
       ).rejects.toThrow(MigrationLockHeldError);
       expect(await countAppliedMigrations(connection)).toBe(0);
     } finally {
-      await otherRun.end();
+      await otherRun.release();
     }
   });
 
-  it('runs once the other connection has dropped the lock', async () => {
-    const otherRun = await holdMigrationLock(DATABASE_NAME);
-    await otherRun.end();
-
-    expect(await runMigrations(connection, MIGRATIONS_FOLDER)).toBe(
-      CHAIN_LENGTH,
-    );
+  it('releases the lock when it is done, so a run from another connection proceeds', async () => {
+    await runMigrations(connection, MIGRATIONS_FOLDER);
+    const laterRun = await connectAsRoot(DATABASE_NAME);
+    try {
+      expect(await runMigrations(laterRun, MIGRATIONS_FOLDER)).toBe(0);
+    } finally {
+      await laterRun.end();
+    }
   });
 
   it('applies nothing on a second run', async () => {
