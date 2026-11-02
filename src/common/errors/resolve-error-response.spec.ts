@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { DuplicateRowError } from './duplicate-row.error.js';
 import { resolveErrorResponse } from './resolve-error-response.js';
+import { RowNotFoundError } from './row-not-found.error.js';
 
 describe('resolveErrorResponse', () => {
   it('falls back to a generic 500 that hides the error details', () => {
@@ -44,5 +46,13 @@ describe('resolveErrorResponse', () => {
     });
 
     expect(resolveErrorResponse(badGateway).statusCode).toBe(500);
+  });
+
+  it('answers a duplicate row with a 409', () => {
+    expect(resolveErrorResponse(new DuplicateRowError()).statusCode).toBe(409);
+  });
+
+  it('answers a missing row with a 404', () => {
+    expect(resolveErrorResponse(new RowNotFoundError()).statusCode).toBe(404);
   });
 });

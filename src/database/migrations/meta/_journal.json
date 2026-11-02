@@ -36,6 +36,20 @@
       "when": 1793526457188,
       "tag": "0004_require_orders_placed_on",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "5",
+      "when": 1793623042358,
+      "tag": "0005_index_orders_by_store_status_and_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "5",
+      "when": 1793623054170,
+      "tag": "0006_index_products_by_store_and_status",
+      "breakpoints": true
     }
   ]
 }

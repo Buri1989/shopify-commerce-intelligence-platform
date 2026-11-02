@@ -76,8 +76,13 @@ describe('products', () => {
     ]);
   });
 
-  it('has no other index', () => {
-    expect(readIndexes(products)).toEqual([]);
+  it('is filtered by status inside a store through one pair index', () => {
+    expect(readIndexes(products)).toEqual([
+      {
+        name: 'products_store_id_status_idx',
+        columns: ['store_id', 'status'],
+      },
+    ]);
   });
 
   it('allows null in vendor, product_type and the soft delete', () => {

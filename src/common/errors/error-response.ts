@@ -1,3 +1,5 @@
+import { reasonPhrase } from './reason-phrase.js';
+
 export interface ErrorResponseBody {
   statusCode: number;
   error: string;
@@ -8,4 +10,14 @@ export interface ErrorResponseBody {
 export interface ErrorResponse {
   statusCode: number;
   body: object;
+}
+
+export function createErrorResponse(
+  statusCode: number,
+  message: string,
+): ErrorResponse {
+  return {
+    statusCode,
+    body: { statusCode, error: reasonPhrase(statusCode), message },
+  };
 }

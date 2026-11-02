@@ -1,5 +1,6 @@
 import { MySqlContainer } from '@testcontainers/mysql';
 import type { TestProject } from 'vitest/node';
+import { MYSQL_IMAGE } from './mysql-image.js';
 
 export type TestDatabase = {
   readonly host: string;
@@ -40,7 +41,6 @@ export async function setup(
   };
 }
 
-const MYSQL_IMAGE = 'mysql:8.4';
 // Dev-only values, the same as .env.example: they open a throwaway database
 // that lives for one test run.
 const DATABASE_NAME = 'commerce_intelligence';

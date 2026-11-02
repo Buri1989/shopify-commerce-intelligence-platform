@@ -80,11 +80,15 @@ describe('orders', () => {
     ]);
   });
 
-  it('is read newest first inside a store through one pair index', () => {
+  it('is read newest first inside a store, with or without a status', () => {
     expect(readIndexes(orders)).toEqual([
       {
         name: 'orders_store_id_placed_at_idx',
         columns: ['store_id', 'placed_at'],
+      },
+      {
+        name: 'orders_store_id_financial_status_placed_at_idx',
+        columns: ['store_id', 'financial_status', 'placed_at'],
       },
     ]);
   });

@@ -1,0 +1,1 @@
+CREATE INDEX `orders_store_id_financial_status_placed_at_idx` ON `orders` (`store_id`,`financial_status`,`placed_at`);

@@ -19,6 +19,7 @@
     "lint": "oxlint --type-aware src/ test/ .github/ drizzle.config.ts",
     "migrate": "tsx --env-file=.env src/database/migrate.ts",
     "migrate:generate": "drizzle-kit generate",
+    "analyze:queries": "tsx test/analyze-queries.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

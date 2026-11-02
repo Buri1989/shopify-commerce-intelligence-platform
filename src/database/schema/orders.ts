@@ -40,6 +40,11 @@ export const orders = mysqlTable(
     ),
     uniqueIndex('orders_store_id_id_unique').on(table.storeId, table.id),
     index('orders_store_id_placed_at_idx').on(table.storeId, table.placedAt),
+    index('orders_store_id_financial_status_placed_at_idx').on(
+      table.storeId,
+      table.financialStatus,
+      table.placedAt,
+    ),
     foreignKey({
       name: 'orders_store_id_fk',
       columns: [table.storeId],
