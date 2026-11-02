@@ -36,8 +36,9 @@ cost ceiling applies, or when a team already runs MySQL. None of those hold here
 
 - **What problem does it solve?** A database the app can rely on without anyone running a
   database. The service creates it, patches it, backs it up and restores it.
-- **Why did we choose it?** The spec names Amazon RDS for MySQL. The design chose the shape: one
-  `db.t4g.micro`, MySQL 8.4, one zone, in the isolated subnets, in its own stack.
+- **Why did we choose it?** It hands the routine work of running a database to AWS: patches,
+  backups, recovery and encryption. The spec also names Amazon RDS for MySQL. The design chose the
+  shape: one `db.t4g.micro`, MySQL 8.4, one zone, in the isolated subnets, in its own stack.
 - **What alternatives did we consider?** Aurora MySQL, AWS's own MySQL-compatible engine: faster
   failover and storage that grows by itself, but its smallest sizes cost several times this
   server. Self-managed MySQL on EC2, question 1. MySQL 8.0, which pays the extended-support fee

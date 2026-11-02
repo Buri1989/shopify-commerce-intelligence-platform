@@ -12,7 +12,6 @@ trade-offs are in `task-2.3-design.md`.
 
 A migration is a file of SQL that changes the database: it makes a table, adds a column, adds an
 index. The files are numbered and run in order, and the database remembers which ones have run.
-This task's chain is five files in `src/database/migrations/`.
 
 Backward-compatible means: after a migration has run, the old version of the app still works. We
 need that for two reasons. During a deploy, old and new containers run side by side for a minute
@@ -22,19 +21,18 @@ newest database. The database itself is never rolled back.
 Three kinds of change, three ways to stay inside the rule:
 
 - **Adding something** is safe in one deploy: a new table, a new index, a new column that may be
-  empty or has a default. The old code does not know the new thing and does not need to. Files 0,
-  1 and 2 do this.
+  empty or has a default. The old code does not know the new thing and does not need to.
 - **Removing or renaming** takes two deploys. First the code stops using the column and ships. In a
   later deploy a migration drops it. Dropped in one go, the old code still running would ask for a
-  column that is gone. Nothing has been removed yet.
-- **Making a column required** takes three steps. Add it as optional (file 2). Fill it for the rows
-  that already exist (file 3, which sets `placed_on` to the day of `placed_at`). Make it required
-  (file 4), but only once every running version writes it. Today no code inserts orders, so the
-  three steps could ship in one task. From Phase 3 on, every version of the app writes `placed_on`.
+  column that is gone.
+- **Making a column required** takes three steps. Add it as optional. Fill it for the rows that
+  already exist. Make it required, but only once every running version writes it.
 
-The database does not check this rule; we keep it when we write the file. The e2e test shows the
-shape once: it runs files 0 to 2, inserts orders, runs files 3 and 4, and checks that the orders
-got their day and that the column is now required.
+The database does not check this rule. The team keeps it when writing each file.
+
+In this project, `orders.placed_on` took those three steps as files 2, 3 and 4. The e2e test runs
+them with orders already in the table, then checks that the orders got their day and that the column
+is now required.
 
 ## 2. The seven general questions, for Drizzle
 
@@ -97,27 +95,35 @@ writes still allowed meanwhile. On a big table, a change like file 4 runs at a q
 
 ### 9. How do indexes affect write performance?
 
-Built: file 1, the index `orders_store_id_placed_at_idx` on `(store_id, placed_at)`.
+An index is a sorted copy of some columns that the database keeps next to the table, so it can find
+rows fast. Every index makes writes slower, because the database must update it too: on every insert,
+on every delete, and on every update of a column it holds. One write becomes several, which means
+more disk, more log and more work per write.
 
-An index is a sorted copy of some columns that the database keeps next to the table, so it can
-find rows fast. The database must update it on every insert, on every update of a column it
-holds, and on every delete. Each index is one more place to write: more disk, more log. `orders`
-now has five indexes besides the primary key: the two unique ones and the two pointer indexes from
-Task 2.2, and this one. One insert into `orders` writes six structures. The cost is paid on every
-write and paid back on every read that uses the index: a store's orders newest first, or between
-two dates. Without the index those reads look at every order of the store. So an index is added
-when there is a query that needs it; the index on `placed_on` waits for the daily roll-up of
-Phase 5.
+Reads pay that cost back. So add an index only when a real query needs it, remove indexes nothing
+uses, and avoid ones that overlap. A table with many writes and few reads should keep few indexes.
+
+In this project, after this task `orders` has three indexes besides the primary key: the two unique
+ones from Task 2.2 and `(store_id, placed_at)`. MySQL adds no separate index for the pointer to the
+store, because the unique ones already start with `store_id`. One insert writes four structures. The
+index on `placed_on` waits for the daily roll-up of Phase 5.
 
 ### 13. How do you perform a zero-downtime schema change?
 
-Zero downtime means the service answers requests the whole time. Two parts make it work. The rule
-of §1: no migration breaks the version that is running, so old and new code can both live on the
-new schema. And the order of the deploy: the migration runs as its own task, from the new image,
-before the service moves. Only when it exits 0 does the service swap containers, one at a time,
-the old ones still answering. There is never a moment without a service and never a moment with
-two schemas. The lock makes two runs at once impossible, the deploy queue makes them unlikely, and
-MySQL does the changes of files 1 and 2 without rewriting the table.
+Zero downtime means the service answers requests the whole time the schema changes. Three things make
+that work:
+
+1. **Changes both versions can live with.** During a deploy, old and new code run at the same time,
+   so no step may break either. A big change is split into small backward-compatible ones, often
+   called expand and contract: add the new thing, move the code to it, fill old rows, and remove the
+   old thing in a later deploy.
+2. **Changes that do not block the table.** Use operations the database can do while reads and writes
+   continue, run big fills in small batches, and run heavy changes at a quiet hour.
+3. **The right order in the deploy.** The migration runs once, before the new code starts. Then
+   containers are replaced one at a time, and old ones keep answering until the new ones are healthy.
+
+In this project, the migration runs as its own task from the new image, and it must exit 0 before the
+service swaps containers. A lock stops two runs at once.
 
 ## 4. Why we picked what we picked
 

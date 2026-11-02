@@ -10,12 +10,12 @@ trade-offs are in `task-1.5-design.md`. The rollback is in §5.
 
 ## 1. GitHub Actions with OIDC, the seven questions
 
-- **What problem does it solve?** Before this task, a deploy was a person at a laptop with an
-  admin profile. Now a merge to `main` is the deploy, and what deploys is exactly what the pull
-  request reviewed. The workflows need a way into AWS without a stored key. GitHub signs a token
-  for every run that names the repository and the branch; AWS checks it against the identity
-  provider we registered and against the role's trust rule, and hands out credentials that expire
-  within the hour.
+- **What problem does it solve?** A deploy done by hand depends on one person's laptop and admin
+  rights, and what runs can differ from what was reviewed. A pipeline runs the same checks and the
+  same deploy on every merge. It also needs a way into AWS, and a stored key can leak and must be
+  rotated. With OIDC, GitHub signs a token for every run that names the repository and the branch.
+  AWS checks that token against the identity provider we registered and against the role's trust
+  rule, then hands out credentials that expire within the hour.
 - **Why did we choose it?** The spec requires GitHub Actions, and OIDC is the one login that
   meets the rule of no long-lived keys without a process for rotating keys.
 - **What alternatives did we consider?** An IAM user with a key stored in GitHub secrets:

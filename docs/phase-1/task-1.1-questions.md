@@ -48,7 +48,7 @@ Dependencies go one way: controller → service → repository, never back.
 ## 4. What makes a REST API well-designed?
 
 - Nouns for resources, HTTP verbs for actions, the standard status codes.
-- One error shape everywhere: `{ statusCode, error, message, requestId, issues? }`.
+- One error shape on every endpoint, so a client handles every failure the same way.
 - Validation at the edge, where the request comes in. A 400 names every bad field.
 - Nothing internal leaks. An unexpected error becomes a generic 500; its stack trace goes to the
   log, not to the client.
@@ -73,14 +73,17 @@ response.
 
 ## 6. How should an application handle configuration across environments?
 
-- Settings come from environment variables, never from the source code. One image, different
-  variables per environment.
-- They are validated when the app starts, with zod. A bad value stops the process and names
-  the variable.
-- The code reads them through `ConfigService`, typed.
-- Secrets come from AWS at runtime; locally they come from an untracked `.env` file.
-  `.env.example` lists every variable, without values.
-- Tests ignore `.env`.
+- Keep settings outside the code, in environment variables, so one build runs everywhere with
+  different values.
+- Validate them when the app starts. A bad value stops the process at once and names the variable,
+  instead of failing later on a real request.
+- Read them through one typed module, not `process.env` scattered through the code.
+- Keep secrets out of the repository: a secret store in production, an untracked file locally, and
+  an example file that lists every variable without values.
+- Tests do not read a developer's local settings.
+
+In this project, zod validates the variables, `ConfigService` reads them, and `.env.example` lists
+them.
 
 ## 7. Why are health and readiness endpoints different?
 
