@@ -1,6 +1,7 @@
 import {
   datetime,
   foreignKey,
+  index,
   mysqlTable,
   uniqueIndex,
   varchar,
@@ -33,6 +34,7 @@ export const products = mysqlTable(
       table.shopifyId,
     ),
     uniqueIndex('products_store_id_id_unique').on(table.storeId, table.id),
+    index('products_store_id_status_idx').on(table.storeId, table.status),
     foreignKey({
       name: 'products_store_id_fk',
       columns: [table.storeId],

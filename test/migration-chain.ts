@@ -1,7 +1,11 @@
 import { copyFile, mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type Connection, createConnection } from 'mysql2/promise';
+import {
+  type Connection,
+  type ConnectionOptions,
+  createConnection,
+} from 'mysql2/promise';
 import { inject } from 'vitest';
 import {
   acquireMigrationLock,
@@ -21,14 +25,12 @@ export async function createFreshDatabase(name: string): Promise<void> {
 }
 
 export function connectAsRoot(database?: string): Promise<Connection> {
+  return createConnection(resolveRootLogin(database));
+}
+
+export function resolveRootLogin(database?: string): ConnectionOptions {
   const { host, port, rootPassword } = inject('database');
-  return createConnection({
-    host,
-    port,
-    user: 'root',
-    password: rootPassword,
-    database,
-  });
+  return { host, port, user: 'root', password: rootPassword, database };
 }
 
 export interface HeldMigrationLock {

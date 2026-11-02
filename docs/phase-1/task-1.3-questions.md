@@ -35,7 +35,8 @@ This project: one long-lived HTTP service, workers later, no Kubernetes team, no
 
 - **What problem does it solve?** Keep a container running behind a load balancer, replace it
   when it dies, roll out a new version without a gap, and own no server.
-- **Why did we choose it?** The spec names it, and §1 says why it fits.
+- **Why did we choose it?** It runs a long-lived service with no servers to manage, and it suits
+  the workers that come later. The spec also names it, and §1 compares it with the others.
 - **What alternatives did we consider?** The three above. Lambda lost on the Phase 3 and 4
   workloads.
 - **What are its limitations?** No GPU or privileged mode; tens of seconds to boot; CPU and

@@ -4,7 +4,7 @@ Multi-tenant Shopify app backend: NestJS 12, TypeScript, MySQL, AWS. Built phase
 phase as a backend engineering training assignment. The assignment is in
 `docs/Boris-ing.md`; each task has a design doc and a questions doc under `docs/phase-N/`.
 
-**Status:** Phase 2 in progress. Task 2.3 built: the five-file migration chain, the locked migration script, the migration stack and the deploy step that runs the migrations before the service moves.
+**Status:** Phase 2 in progress. Task 2.4 built: repositories for stores, products and orders with their items, bookmark paging, two new indexes and the query analysis.
 
 ## Requirements
 
@@ -43,9 +43,10 @@ database.
 
 The tables are written in `src/database/schema/`; the database learns about them through the
 numbered SQL files in `src/database/migrations/`, applied in order, each recorded in the
-`__drizzle_migrations` table. Five files so far: the ten tables, the index on
-`orders (store_id, placed_at)`, the `orders.placed_on` column, its fill from `placed_at`, and its
-tightening to `NOT NULL`.
+`__drizzle_migrations` table. Seven files so far: the ten tables, the index on
+`orders (store_id, placed_at)`, the `orders.placed_on` column, its fill from `placed_at`, its
+tightening to `NOT NULL`, and the indexes on `orders (store_id, financial_status, placed_at)` and
+`products (store_id, status)`.
 
 **Writing a file.** Change the table files, then:
 
@@ -95,11 +96,16 @@ npm run typecheck          # tsc --noEmit; npm test does not type-check
 npm run lint
 npm run format             # writes
 npm run format:check       # what CI runs: fails on an unformatted file, writes nothing
+npm run analyze:queries    # by hand, not part of the gate; Docker must be running
 ```
 
 The e2e suite starts its own MySQL 8.4 container with Testcontainers, once per run, fresh and
 empty, and removes it when the run ends. The first run pulls the image. The same command works on
 a laptop and on the GitHub runner.
+
+`npm run analyze:queries` starts its own MySQL 8.4 container, fills about 100,000 made-up orders and
+20,000 products, prints `EXPLAIN ANALYZE` for each list query with and without the new index, and
+removes the container. The results are in `docs/phase-2/task-2.4-query-analysis.md`.
 
 ## Configuration
 
@@ -426,11 +432,14 @@ src/
     filters/         the global exception filter
     validation/      zod validation pipe
     http/            keep-alive and proxy settings for life behind the load balancer
-  database/          the pool and Drizzle on it; schema/ the ten tables; migrations/ the SQL chain with drizzle-kit's journal and snapshots; the migration script and its lock
+  database/          the pool and Drizzle on it; schema/ the ten tables; migrations/ the SQL chain with drizzle-kit's journal and snapshots; the migration script and its lock; the paging and write helpers every repository shares
   health/            /health and /ready, with the database indicator behind /ready
+  stores/            the stores repository and its module
+  products/          the products repository and its module
+  orders/            the orders repository, with their items, and its module
   app.setup.ts       configureApp: logger, edge middleware, shutdown hooks
   main.ts
-test/                e2e specs, the shared app-boot helper, the migration helpers, global-setup.ts (one MySQL container per run) and e2e-setup.ts (its address into every worker's environment)
+test/                e2e specs, the shared app-boot helper, the migration and repository helpers, the query analysis script, global-setup.ts (one MySQL container per run) and e2e-setup.ts (its address into every worker's environment)
 certs/               AWS's RDS certificate bundle for eu-north-1, copied into the image
 docker-compose.yml   MySQL 8.4 for local development, dev-only login, data in a named volume
 drizzle.config.ts    drizzle-kit: the table files in, the migrations folder out
@@ -461,4 +470,5 @@ docs/                the assignment, per-task design and questions docs, and the
 - `docs/phase-2/task-2.1-design.md` and `task-2.1-questions.md`: RDS for MySQL, the secret, TLS, the pool
 - `docs/phase-2/task-2.2-design.md` and `task-2.2-questions.md`: the schema, the ERD, keys, pointers, delete rules
 - `docs/phase-2/task-2.3-design.md` and `task-2.3-questions.md`: migrations, the one-off task, the lock, the backward-compatible strategy
+- `docs/phase-2/task-2.4-design.md`, `task-2.4-questions.md` and `task-2.4-query-analysis.md`: repositories, transactions, paging, the two indexes and what they do
 - `docs/architecture.md`: the environment as deployed, updated by every task that changes it

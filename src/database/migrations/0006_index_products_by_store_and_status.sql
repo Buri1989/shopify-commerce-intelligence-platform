@@ -1,0 +1,1 @@
+CREATE INDEX `products_store_id_status_idx` ON `products` (`store_id`,`status`);

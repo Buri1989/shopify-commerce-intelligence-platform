@@ -4,7 +4,7 @@ The Commerce Intelligence environment as deployed: stage `dev`, region `eu-north
 CloudFormation stacks defined with AWS CDK in `infra/`. This file describes what runs; the design
 doc of each task records why it is shaped that way. It is updated as the environment grows.
 
-**Last updated:** 2026-11-01, Task 2.3.
+**Last updated:** 2026-11-02, Task 2.4.
 
 ## 1. The network
 
@@ -186,6 +186,11 @@ protection, the server's deletion protection, and the final snapshot taken if bo
 and the server is deleted anyway. No path for a person into the database exists yet; the app and
 the migration task are its only clients.
 
+The app reaches the tables through three repositories: stores, products, and orders with their
+items. Nothing calls them yet, because no endpoint reads or writes a row. Besides its unique indexes,
+`orders` carries `(store_id, placed_at)` and `(store_id, financial_status, placed_at)`, and
+`products` carries `(store_id, status)`.
+
 ## 5. The stacks
 
 | Stack                                 | Holds                                                                                                                                    | Depended on by                                 | Termination protection                                   |
@@ -210,4 +215,5 @@ is in the README.
 - `task-1.5-design.md`: the pipeline, the two roles, the diff comment, the rollback.
 - `task-2.1-design.md`: the database, the secret, TLS, the pool, readiness.
 - `task-2.3-design.md`: the migrations, the one-off task, the lock, the sixth stack, the deploy step.
+- `task-2.4-design.md`: the repositories, transactions, paging, the two indexes.
 - `README.md`: the procedures: deploy, review and apply, tear-down.

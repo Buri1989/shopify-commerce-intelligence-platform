@@ -9,94 +9,93 @@ and trade-offs are in `task-2.2-design.md`.
 
 ## 1. One-to-one: when to split an entity into two tables
 
-One-to-one means a row in one table has exactly one matching row in another table. Built:
-`stores` and `store_credentials`, one row each per store; `store_credentials.store_id` is both
-the primary key of its table, the column that identifies the row, and the pointer to `stores.id`.
+One-to-one means a row in one table has at most one matching row in another table. Splitting an
+entity into two tables this way is appropriate when:
 
-Split into two tables when:
-
-- The two halves are read by different code at different rates. The stores row is read by
-  listings and analytics all day; the access token only by the code that calls Shopify.
-- One half needs its own protection. Task 3.3 encrypts the token; one small table changes then,
-  not the one every query touches.
-- One half has its own lifetime. A store that uninstalled the app has no credentials row any
-  more; the stores row stays, with `uninstalled_at` set, and no column holds a dead token.
+- The two halves are read at very different rates. Frequent reads stay small and skip columns they
+  do not use.
+- One half needs its own protection, such as stricter access or encryption.
+- One half has its own lifetime. It can be missing or removed while the other half stays.
 
 Keep them together when every read needs both halves and the columns live and die together. A
 split would then cost a join, two tables read as one, on every read, for nothing.
 
+In this project `stores` and `store_credentials` are split. Only the code that calls Shopify reads
+the access token, Task 3.3 encrypts it, and it goes when a store uninstalls while the store row
+stays. `store_credentials.store_id` is both the table's primary key and the pointer to `stores.id`.
+
 ## 2. One-to-many: foreign keys, integrity, cascades, indexes
 
-One-to-many means a row in a parent table has many matching rows in a child table. Built:
-Store → Orders, Order → Order Items, Product → Variants.
+One-to-many means a row in a parent table has many matching rows in a child table, and each child
+has one parent.
 
-- **Foreign key**: a column, or a pair of columns, in the child table whose value must match a
-  key of the parent table; we also call it a pointer. `orders.store_id` → `stores.id`;
-  `order_items (store_id, order_id)` → `orders (store_id, id)`.
-- **Referential integrity**: the database keeps the pointers true. MySQL refuses a child row
-  whose parent row does not exist, and it decides what happens to the children when the parent
-  goes. An item for an order that never existed cannot be written, whatever the code does.
-- **Cascading**: the delete rule on the pointer, what happens to the children when the parent
-  row is deleted. `CASCADE` deletes the children with the parent: a store and everything of it,
-  an order and its items, a product and its variants. `SET NULL` keeps the child row and empties
-  the pointer: an order item stays when its product or variant is deleted. The rule is chosen per
-  pointer: a row that cannot exist without its parent cascades; a fact of history keeps its row.
-- **Indexing**: an index is a sorted copy of some columns that the database keeps next to the
-  table, to find rows fast. MySQL requires an index whose first columns are the pointing columns,
-  and a pair pointer requires a unique index on the target pair. Every pointer here carries its
-  index, and the same index serves the lookup "children of this parent": `(store_id, order_id)`
-  on items, `(store_id, product_id)` on variants.
+- **Foreign key**: a column, or a pair of columns, in the child table whose value must match a key
+  of the parent table; we also call it a pointer.
+- **Referential integrity**: the database keeps the pointers true. It refuses a child row whose
+  parent does not exist, and it applies a rule when a parent is deleted. Whatever the code does, no
+  child can point at nothing.
+- **Cascading**: the rule for what happens to the children when the parent is deleted. `CASCADE`
+  deletes them too. `SET NULL` keeps them and empties the pointer. `RESTRICT` refuses the delete
+  while children exist. A row that cannot exist without its parent cascades; a fact of history keeps
+  its row.
+- **Indexing**: an index is a sorted copy of some columns that the database keeps next to the table,
+  to find rows fast. A foreign key needs one, so the database can check the pointer and find a
+  parent's children without reading the whole table.
+
+In this project: Store → Orders, Order → Order Items, Product → Variants. Deleting a store, an order
+or a product row deletes its children, and an order item keeps its row with the pointer emptied when
+its product or variant goes.
 
 ## 3. What are primary and foreign keys?
 
-- **Primary key**: the column or columns that identify a row. It is unique, never null, and a
-  table has one. InnoDB, MySQL's storage engine, stores the rows in the order of the primary key,
-  so a growing number appends at the end instead of inserting in the middle. Here:
-  `id BIGINT UNSIGNED AUTO_INCREMENT` on seven tables; the pair `(collection_id, product_id)` on
-  `collection_products`; `(store_id, day)` on `store_analytics`; `store_id` on
-  `store_credentials`.
+- **Primary key**: the column or columns that identify a row. It is unique, never null, and a table
+  has one. InnoDB, MySQL's storage engine, stores rows in primary key order, so a growing number
+  appends at the end instead of inserting in the middle.
 - **Foreign key**: a column or columns that must match the primary key or a unique key of another
-  table; the database checks the match on every write and every delete. Twelve pointers here,
-  each named `<table>_<columns>_fk`, each with a delete rule and an index.
+  table. It links the two tables, and the database checks that link on every write and every delete.
+
+In this project, seven tables use `id BIGINT UNSIGNED AUTO_INCREMENT`, the other three use a key that
+suits them, and twelve foreign keys are named by hand.
 
 ## 4. What are composite indexes?
 
-An index on more than one column, sorted by the first column, then by the second within it, like
-a phone book sorted by last name and then by first name. It serves a query that filters on the
-leading columns: `(store_id, shopify_id)` serves `store_id = ?` and
-`store_id = ? AND shopify_id = ?`, but not `shopify_id = ?` alone. So the column every query
-filters on goes first. Every unique rule and pointer index here starts with `store_id`, and one
-index serves both the tenant filter and the lookup: `products (store_id, shopify_id)` finds the
-product a webhook names; `order_items (store_id, order_id)` lists an order's items.
+An index on more than one column, sorted by the first column, then by the second within it, like a
+phone book sorted by last name and then by first name. It serves a query that filters on the leading
+columns: `(a, b)` serves `a = ?` and `a = ? AND b = ?`, but not `b = ?` alone. So the columns a query
+tests for equality go first, and a column it sorts by or searches as a range goes last. A good one
+can also return rows already in order, so the database does not have to sort them.
+
+In this project, every unique rule and pointer index starts with `store_id`, so one index serves both
+the store filter and the lookup.
 
 ## 5. What is database normalization?
 
-Storing each fact once, in the table it belongs to, and reaching it by key. The rules, called
-normal forms, as they appear here:
+Normalization means storing each fact once, in the table it belongs to, and reaching it by key.
+Copies cannot disagree, and changing a fact means changing one row. The cost is more joins on read.
+The rules are called normal forms:
 
-- No lists inside a column: a product's collections are rows of `collection_products`, not a
-  column of ids on the product, so the database can check them and index them.
-- Every column depends on the whole key: on `collection_products`, `position` is a fact about
-  the pair, not about the product alone.
-- No column depends on another column that is not the key: a variant's product is `product_id`,
-  and the product's title lives on `products` only.
+- **First normal form:** no lists inside a column. Repeated items become rows of their own table.
+- **Second normal form:** every column depends on the whole key. In a table keyed by a pair, a fact
+  about only one half moves to that half's table.
+- **Third normal form:** no column depends on another column that is not the key. A customer's city
+  does not sit on an order beside the customer's id.
+
+In this project, a product's collections are rows of `collection_products`, not a list on the
+product.
 
 ## 6. When should denormalization be used?
 
-Denormalization is storing a fact a second time, on purpose. Do it when a read would have to
-walk many rows on every request, or when a fact must freeze. Two cases are built, each with its
-source of truth kept:
+Denormalization is storing a fact a second time, on purpose, to make reads cheaper. Use it when:
 
-- `store_analytics`: one row per store per day with that day's order count and revenue, filled
-  as orders arrive. "Revenue over time" is then a range of rows; without it every request would
-  sum every order the store ever had. The orders are the source; the rows can be rebuilt from
-  them.
-- `order_items.title`, `variant_title`, `sku`, `price`: the values as sold. Prices change and
-  products get renamed; the order must not. The product row is still reached through
-  `product_id` for counting.
+- A read would have to join or add up many rows on every request, and a stored copy or total is much
+  cheaper.
+- A fact must freeze at a moment in time, such as the price on a past order.
 
-Not done: copying `stores.currency` onto every analytics row, since it is one join away and
-rarely read.
+Try an index or a better query first. The cost is extra work on every write and copies that can
+disagree, so one place stays the source of truth and the copy can be rebuilt from it.
+
+In this project, `store_analytics` keeps one total per store per day, rebuilt from the orders, and
+`order_items` keeps the title, SKU and price as sold.
 
 ## 7. How should external Shopify IDs be represented?
 
@@ -109,21 +108,25 @@ is one line in `shared-columns.ts` if they ever pass that.
 
 ## 8. How can tenant isolation be enforced?
 
-A tenant is one store; isolation means one store can never see or touch another store's rows.
-Three layers in the schema:
+A tenant is one customer of a shared system; here, one store. Isolation means one tenant can never
+see or touch another tenant's rows. There are three common ways to arrange the data:
 
-- `store_id` on every table, grandchildren included, so every query says `store_id = ?`
-  directly, with no detour through the parent that a query could forget.
-- Every unique rule and pointer index starts with `store_id`, so that filter is always indexed.
-- The database checks that the store matches: a grandchild's pointer is the pair
-  `(store_id, parent_id)` referencing the parent's `(store_id, id)`, so an item of one store
-  pointing at an order of another store is refused on write.
+- **A server per tenant:** the strongest split, and the most expensive to run.
+- **A database per tenant on one server:** a strong split, but every migration runs once per tenant.
+- **Shared tables with a tenant column:** the cheapest and simplest to run, but every query must
+  filter, and one mistake leaks data.
 
-The one gap is deliberate: an order item's pointers to its product and variant are single-column
-with `SET NULL`, because `SET NULL` on a pair would empty `store_id` too. The item's store is
-still fixed by its pair pointer to the order; that the product belongs to the same store is the
-app's to keep. The app layer that passes the store on every query comes with the first
-endpoints.
+With shared tables, several layers work together, so one mistake is not enough:
+
+- A tenant column on every table, so every query can filter directly.
+- Indexes that start with the tenant column, so that filter is always fast.
+- Foreign keys that include the tenant column, so the database refuses a row that points across
+  tenants.
+- One layer of the app where the tenant is a required argument, with tests for every query.
+
+In this project we use shared tables with `store_id`. One gap is deliberate: an order item's pointers
+to its product and variant are single-column with `SET NULL`, because `SET NULL` on a pair would empty
+`store_id` too. So the app keeps that match.
 
 ## Why we picked what we picked
 

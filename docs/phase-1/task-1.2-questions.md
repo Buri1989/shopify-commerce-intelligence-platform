@@ -72,12 +72,15 @@ for production. See `task-1.3-questions.md` §5.
 
 ## 6. Can an application running in a private subnet access Shopify APIs?
 
-Yes. The container looks up the host name, opens a connection on port 443, the route table sends
-it to the NAT, the NAT passes it through the Internet Gateway and sends the reply back. The `app`
-security group allows outgoing traffic on 443 only.
+Yes, as long as it has a route out. A private subnet only blocks connections started from the
+internet. The application starts this one itself: it looks up the host name and opens a connection
+on port 443. The route table sends that connection to a NAT, and the NAT passes it through the
+Internet Gateway and sends the reply back. The security group must also allow the traffic out.
 
-Without NAT: no. Shopify never connects to the container itself; its webhooks come in through
-the load balancer.
+Without NAT, no. Incoming traffic is a separate path: Shopify's webhooks reach the app through the
+load balancer, never directly.
+
+In this project, the `app` security group allows outgoing traffic on 443 only.
 
 ## 7. How can an ECS task reach AWS services without accessing the public internet?
 
@@ -93,22 +96,35 @@ The task also needs IAM permission for the service it calls; Task 1.3 adds that.
 
 ## 8. Why should databases be deployed in private subnets?
 
-A database never needs the internet. Every path that does not exist cannot be attacked. Ours is
-in an isolated subnet: no route out, a security group that accepts MySQL from the `app` group
-only, no outgoing rule. A leaked password is useless from outside the VPC.
+A database only needs to talk to the application, never to the internet, so a public path adds risk
+and no value. In a private subnet it has no public address and no route from outside, so an attacker
+cannot even reach its login. A stolen password is not enough either, because the attacker must first
+get inside the network. A security group then narrows access to the application alone.
+
+In this project the database is in an isolated subnet: no route out, and MySQL accepted from the
+`app` group only.
 
 ## 9. What happens if an Availability Zone becomes unavailable?
 
 An availability zone is one of the separate data centres a region is made of. If one fails,
-everything in it stops. The load balancer stops sending traffic there, and ECS starts
-replacement containers in the other zone.
+everything that lives only in that zone stops, and everything in the other zones keeps running. A
+system survives only if its important parts run in at least two zones:
 
-With one NAT in zone a, a failure of zone a also cuts outgoing traffic from zone b. The fix: set
-`natGatewayCount: 2` and deploy; CloudFormation adds the second gateway and points zone b's
-route table at it, in minutes. That is the production setting. For the database the answer is
-Multi-AZ RDS, a standby copy in the other zone (Task 2.1).
+- The load balancer stops sending traffic to the failed zone.
+- The container service starts replacements in a healthy zone.
+- A database with a standby copy in another zone switches to it, usually within a couple of minutes.
+- A part with only one copy, such as a single NAT, is a single point of failure. Other zones that
+  depend on it lose that path too.
+
+In this project, a failure of zone a also cuts outgoing traffic from zone b, because the one NAT
+lives there. Production would add a second NAT and a Multi-AZ database (Task 2.1).
 
 ## 10. What are the cost implications of NAT Gateways and multi-AZ architecture?
+
+A NAT Gateway costs money in two ways: a fixed price per hour for each gateway, and a price for
+every GB through it. Traffic between zones is charged too, so one shared gateway saves the fixed
+price but pays for that traffic. Multi-AZ means running a copy of the important parts in a second
+zone, which roughly doubles everything billed per zone.
 
 Stockholm, approximate:
 

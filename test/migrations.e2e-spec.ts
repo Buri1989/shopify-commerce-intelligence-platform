@@ -22,7 +22,7 @@ import {
 import { insertStoreWithOrders, readOrderDays } from './order-rows.js';
 
 const DATABASE_NAME = 'migrations_e2e';
-const CHAIN_LENGTH = 5;
+const CHAIN_LENGTH = 7;
 const FILES_BEFORE_PLACED_ON = 2;
 const EXPECTED_TABLES = [
   MIGRATIONS_TABLE,
@@ -49,16 +49,26 @@ describe('the migration chain (e2e)', () => {
     expect(await readTableNames(connection)).toEqual(EXPECTED_TABLES);
   });
 
-  it("indexes a store's orders by the time they were placed", async () => {
+  it.each([
+    {
+      table: 'orders',
+      index: 'orders_store_id_placed_at_idx',
+      columns: ['store_id', 'placed_at'],
+    },
+    {
+      table: 'orders',
+      index: 'orders_store_id_financial_status_placed_at_idx',
+      columns: ['store_id', 'financial_status', 'placed_at'],
+    },
+    {
+      table: 'products',
+      index: 'products_store_id_status_idx',
+      columns: ['store_id', 'status'],
+    },
+  ])('builds $index', async ({ table, index, columns }) => {
     await runMigrations(connection, MIGRATIONS_FOLDER);
 
-    expect(
-      await readIndexColumns(
-        connection,
-        'orders',
-        'orders_store_id_placed_at_idx',
-      ),
-    ).toEqual(['store_id', 'placed_at']);
+    expect(await readIndexColumns(connection, table, index)).toEqual(columns);
   });
 
   it('fills placed_on from placed_at for the orders that exist, then requires it', async () => {

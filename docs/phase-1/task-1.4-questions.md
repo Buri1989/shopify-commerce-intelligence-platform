@@ -50,7 +50,11 @@ change is made. Verified 2026-10-22. Alternatives and trade-offs are in `task-1.
 
 ## 2. How is a deployment repeated from zero?
 
-A clean clone, `npm ci` in both packages, the SSO profile, the short-lived login through AWS's
+A deployment is repeatable when everything it needs is in code, so anyone with access can rebuild
+the same environment with the same commands. It must not depend on one person's laptop, on steps
+done by hand, or on values looked up at the time.
+
+In this project: a clean clone, `npm ci` in both packages, the SSO profile, the short-lived login through AWS's
 single sign-on, then the README's sequence: bootstrap, the network and registry stacks, the image
 push, the app stack. Everything the stacks need is in the repository or in the stage config.
 Nothing is looked up with credentials when the templates are produced, so the `cdk synth` of the
@@ -62,7 +66,11 @@ was "latest" until this task; it is pinned now.
 
 ## 3. How is the state kept safe?
 
-The state is CloudFormation's record inside the account, protected by IAM, AWS's permission
+The state is the record of what a tool has deployed. If it is lost or wrong, the tool no longer
+knows what it owns. So it must live in one protected place, with access rules, and with a guard so
+that two updates cannot run at once.
+
+Ours is CloudFormation's record inside the account, protected by IAM, AWS's permission
 system. Nothing on a laptop or in the repository holds it. `cdk.context.json`, the file where CDK
 caches looked-up values, never exists, because nothing is looked up.
 
@@ -79,7 +87,12 @@ is read twice.
 
 ## 4. What separates infrastructure configuration from application configuration?
 
-Two packages that never import each other. `infra/` has its own dependencies and its own gate,
+Infrastructure configuration describes the environment: the network, the sizes, the region. It
+changes rarely and is applied by a deploy. Application configuration describes how the app behaves:
+ports, log levels, connection details. It reaches the app when the app starts. Keeping them apart
+lets each change on its own, and it stops the app from depending on how it is hosted.
+
+In this project they are two packages that never import each other. `infra/` has its own dependencies and its own gate,
 and the Docker build leaves it out. Infrastructure configuration is the typed `StageConfig`:
 region, zones, sizes, the pinned image, the hosted zone. Application configuration is the
 environment variables that `env.schema.ts` validates when the app starts. The one bridge is the
@@ -106,7 +119,10 @@ text.
 
 ## 6. How is the deployment process documented?
 
-The README: the commands, from setup to tear-down. `docs/architecture.md`: the picture of what
+Good deployment documents say what to run, what is running and why it is that way, each in one
+place, and they change together with the code.
+
+In this project, the README: the commands, from setup to tear-down. `docs/architecture.md`: the picture of what
 runs, kept current by every task. The design docs: the reasons. The README carries steps and
 pointers only.
 

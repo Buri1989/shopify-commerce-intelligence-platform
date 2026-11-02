@@ -1,5 +1,4 @@
-import type { ErrorResponse } from './error-response.js';
-import { reasonPhrase } from './reason-phrase.js';
+import { createErrorResponse, type ErrorResponse } from './error-response.js';
 
 interface ExposedHttpError extends Error {
   statusCode: number;
@@ -12,11 +11,7 @@ export function mapExposedHttpError(
   if (!isExposedHttpError(exception)) {
     return undefined;
   }
-  const { statusCode, message } = exception;
-  return {
-    statusCode,
-    body: { statusCode, error: reasonPhrase(statusCode), message },
-  };
+  return createErrorResponse(exception.statusCode, exception.message);
 }
 
 function isExposedHttpError(exception: unknown): exception is ExposedHttpError {
