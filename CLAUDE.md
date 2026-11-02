@@ -239,3 +239,29 @@ full reference. Apply them while writing, not after. The rules that come up most
   settings objects every database spec shares), `fake-connection.ts`. Database helpers take a
   `QueryConnection`, `Pick<Connection, 'query'>`, so a fake is one `vi.fn()`.
 - Locally: `docker compose up -d`, then `npm run migrate`, then `npm run dev`.
+
+## Conventions from Task 2.4
+
+- Only repositories use Drizzle. One class per table group, in its feature folder (`src/orders/`)
+  with a module that imports `DatabaseModule`; the module joins `AppModule`, and
+  `repository-modules.e2e-spec.ts` proves the app can build it.
+- Every method takes `storeId` as a required first argument, and every query says `store_id = ?`;
+  stores are the exception, because the store id is their own id. The store id is written last on
+  create and update, `{ ...row, storeId }`, because types do not exist at run time. Input types
+  leave out what a caller must not set. A column that could cross stores is blanked at run time too,
+  as `createItemRow` does.
+- Types: `Order = typeof orders.$inferSelect`; `NewOrder = Omit<typeof orders.$inferInsert,
+  GeneratedColumns | 'storeId'>`; `OrderChanges = Partial<Omit<NewOrder, 'shopifyId'>>`.
+- `refuseDuplicateRow(write)` turns `ER_DUP_ENTRY` into `DuplicateRowError` (409). It wraps every
+  `create`, and any update that can hit a unique rule. `requireRowFound(result)` throws
+  `RowNotFoundError` (404) on a write that matched nothing. `findById` returns `undefined`.
+- Lists return `Page<Row, Cursor>`: ask for `PAGE_QUERY_LIMIT` rows and hand them to `createPage`.
+  The bookmark is a plain object, and a sort on a non-unique column adds `id` to settle ties.
+- A transaction lives inside the repository method that needs it, inside `refuseDuplicateRow`.
+- Repository specs are `test/*.repository.e2e-spec.ts`: own database from
+  `createRepositoryDatabase`, real migrations, the repository built directly, a new store per test.
+  Rows come from `test/new-rows.ts`. A `readAllPages` callback needs the type on `cursor`. Run
+  `npm run typecheck` on a red spec, because vitest does not check types.
+- `npm run analyze:queries` runs by hand and stays out of the gate. It measures the repository's own
+  query through Drizzle's logger. A new index is measured before it is kept, on rows that mix stores
+  the way a real table does. Rows read are the evidence; times only show the size of a difference.
