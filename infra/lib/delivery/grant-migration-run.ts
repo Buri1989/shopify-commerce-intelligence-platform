@@ -15,7 +15,7 @@ export function grantMigrationRun(
   role.addToPolicy(
     new iam.PolicyStatement({
       actions: ['ecs:RunTask'],
-      resources: [taskDefinition.taskDefinitionArn],
+      resources: [formatTaskDefinitionArn(role, taskDefinition.family)],
     }),
   );
   role.addToPolicy(
@@ -39,6 +39,16 @@ export function grantMigrationRun(
       resources: [logGroup.logGroupArn],
     }),
   );
+}
+
+// Every revision of the family: each deploy registers a new one, and a revision
+// read from the migration stack would go stale.
+function formatTaskDefinitionArn(scope: Construct, family: string): string {
+  return Stack.of(scope).formatArn({
+    service: 'ecs',
+    resource: 'task-definition',
+    resourceName: `${family}:*`,
+  });
 }
 
 // Every task of the cluster: a task's own ARN exists only once it runs.

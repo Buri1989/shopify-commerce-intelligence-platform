@@ -90,7 +90,16 @@ describe('createDeployRole', () => {
     expect(statements).toContainEqual({
       Action: 'ecs:RunTask',
       Effect: 'Allow',
-      Resource: expectStackOutput(MIGRATION_STACK, 'TaskDefinition'),
+      Resource: {
+        'Fn::Join': [
+          '',
+          [
+            'arn:aws:ecs:eu-north-1:',
+            { Ref: 'AWS::AccountId' },
+            ':task-definition/commerce-intelligence-dev-migration:*',
+          ],
+        ],
+      },
     });
     expect(statements).toContainEqual({
       Action: 'ecs:DescribeTasks',
