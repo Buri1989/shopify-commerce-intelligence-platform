@@ -24,6 +24,8 @@ describe('store_credentials', () => {
       'access_token',
       'scopes',
       'expires_at',
+      'refresh_token',
+      'refresh_token_expires_at',
       'created_at',
       'updated_at',
     ]);
@@ -35,6 +37,8 @@ describe('store_credentials', () => {
       access_token: 'varchar(255)',
       scopes: 'text',
       expires_at: 'datetime(3)',
+      refresh_token: 'varchar(255)',
+      refresh_token_expires_at: 'datetime(3)',
       created_at: 'datetime(3)',
       updated_at: 'datetime(3)',
     });
@@ -61,8 +65,8 @@ describe('store_credentials', () => {
     expect(readIndexes(storeCredentials)).toEqual([]);
   });
 
-  it('allows null only in expires_at', () => {
-    expect(readNullableColumns(storeCredentials)).toEqual(['expires_at']);
+  it('allows null in no column, so a key never lacks its refresh key or either expiry', () => {
+    expect(readNullableColumns(storeCredentials)).toEqual([]);
   });
 
   it('stamps created_at on the server and updated_at in the app', () => {

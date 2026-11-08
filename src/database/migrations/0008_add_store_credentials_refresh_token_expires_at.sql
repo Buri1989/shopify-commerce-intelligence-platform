@@ -1,0 +1,1 @@
+ALTER TABLE `store_credentials` ADD `refresh_token_expires_at` datetime(3);

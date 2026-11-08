@@ -332,6 +332,8 @@ erDiagram
         varchar access_token
         text scopes
         datetime expires_at
+        varchar refresh_token
+        datetime refresh_token_expires_at
         datetime created_at
         datetime updated_at
     }
@@ -459,7 +461,9 @@ Pointers: none. Keys: `id`; unique `shopify_id`; unique `shop_domain`.
 | `store_id` | `BIGINT UNSIGNED` | primary key and pointer to `stores.id`, cascade |
 | `access_token` | `VARCHAR(255)` | as Shopify gives it; Task 3.3 changes this column to the encrypted form by migration |
 | `scopes` | `TEXT` | the granted scopes as Shopify lists them |
-| `expires_at` | `DATETIME(3)`, null | empty for a token that does not expire |
+| `expires_at` | `DATETIME(3)` | when the access token runs out, one hour after issue; required since Task 3.1 |
+| `refresh_token` | `VARCHAR(255)` | as Shopify gives it, traded for a new pair; added in Task 3.1, encrypted by Task 3.3 like `access_token` |
+| `refresh_token_expires_at` | `DATETIME(3)` | when the refresh token runs out, 90 days after issue; added in Task 3.1 |
 
 No `id`, no `shopify_id`. Keys: `store_id`.
 

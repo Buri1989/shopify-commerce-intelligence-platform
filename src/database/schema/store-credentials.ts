@@ -17,7 +17,11 @@ export const storeCredentials = mysqlTable(
     storeId: createStoreIdColumn().primaryKey(),
     accessToken: varchar('access_token', { length: 255 }).notNull(),
     scopes: text('scopes').notNull(),
-    expiresAt: datetime('expires_at', { fsp: 3 }),
+    expiresAt: datetime('expires_at', { fsp: 3 }).notNull(),
+    refreshToken: varchar('refresh_token', { length: 255 }).notNull(),
+    refreshTokenExpiresAt: datetime('refresh_token_expires_at', {
+      fsp: 3,
+    }).notNull(),
     ...createTimestampColumns(),
   },
   (table) => [

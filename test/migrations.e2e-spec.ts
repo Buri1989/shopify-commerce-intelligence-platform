@@ -22,7 +22,7 @@ import {
 import { insertStoreWithOrders, readOrderDays } from './order-rows.js';
 
 const DATABASE_NAME = 'migrations_e2e';
-const CHAIN_LENGTH = 7;
+const CHAIN_LENGTH = 10;
 const FILES_BEFORE_PLACED_ON = 2;
 const EXPECTED_TABLES = [
   MIGRATIONS_TABLE,
@@ -92,6 +92,17 @@ describe('the migration chain (e2e)', () => {
       'NO',
     );
   });
+
+  it.each(['expires_at', 'refresh_token', 'refresh_token_expires_at'])(
+    'requires store_credentials.%s',
+    async (column) => {
+      await runMigrations(connection, MIGRATIONS_FOLDER);
+
+      expect(
+        await readColumnNullability(connection, 'store_credentials', column),
+      ).toBe('NO');
+    },
+  );
 
   it('stops at once when another run holds the lock and changes nothing', async () => {
     const otherRun = await holdMigrationLock(DATABASE_NAME);
