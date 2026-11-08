@@ -10,3 +10,8 @@ process.env.DB_PORT = String(database.port);
 process.env.DB_NAME = database.name;
 process.env.DB_USER = database.user;
 process.env.DB_PASSWORD = database.password;
+process.env.SHOPIFY_CLIENT_ID = 'test-client-id';
+process.env.SHOPIFY_CALLBACK_URL =
+  'https://api.example.test/installation/callback';
+process.env.SHOPIFY_CLIENT_SECRET = 'test-client-secret';
+process.env.COOKIE_SECRET = 'test-cookie-secret';
