@@ -5,6 +5,8 @@ import { mapExposedHttpError } from './exposed-http-error.mapper.js';
 import { mapHealthCheckFailure } from './health-check.mapper.js';
 import { mapHttpException } from './http-exception.mapper.js';
 import { mapRowNotFound } from './row-not-found.mapper.js';
+import { mapShopifyUnavailable } from './shopify-unavailable.mapper.js';
+import { mapStoreMustAuthorize } from './store-must-authorize.mapper.js';
 
 type ErrorMapper = (exception: unknown) => ErrorResponse | undefined;
 
@@ -16,6 +18,8 @@ const ERROR_MAPPERS: readonly ErrorMapper[] = [
   mapExposedHttpError,
   mapDuplicateRow,
   mapRowNotFound,
+  mapStoreMustAuthorize,
+  mapShopifyUnavailable,
 ];
 
 const INTERNAL_SERVER_ERROR = createErrorResponse(

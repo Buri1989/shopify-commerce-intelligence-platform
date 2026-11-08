@@ -5,6 +5,8 @@ import {
 import { DuplicateRowError } from './duplicate-row.error.js';
 import { resolveErrorResponse } from './resolve-error-response.js';
 import { RowNotFoundError } from './row-not-found.error.js';
+import { ShopifyUnavailableError } from './shopify-unavailable.error.js';
+import { StoreMustAuthorizeError } from './store-must-authorize.error.js';
 
 describe('resolveErrorResponse', () => {
   it('falls back to a generic 500 that hides the error details', () => {
@@ -54,5 +56,17 @@ describe('resolveErrorResponse', () => {
 
   it('answers a missing row with a 404', () => {
     expect(resolveErrorResponse(new RowNotFoundError()).statusCode).toBe(404);
+  });
+
+  it('answers a store that must authorize again with a 409', () => {
+    expect(
+      resolveErrorResponse(new StoreMustAuthorizeError(42)).statusCode,
+    ).toBe(409);
+  });
+
+  it('answers Shopify not answering with a 503', () => {
+    expect(resolveErrorResponse(new ShopifyUnavailableError()).statusCode).toBe(
+      503,
+    );
   });
 });
