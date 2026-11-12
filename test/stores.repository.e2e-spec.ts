@@ -4,7 +4,7 @@ import { RowNotFoundError } from '../src/common/errors/row-not-found.error.js';
 import { ShopifyUnavailableError } from '../src/common/errors/shopify-unavailable.error.js';
 import { orders, products, stores } from '../src/database/schema/index.js';
 import {
-  type RefreshKeys,
+  type StoreCredentialsRefresher,
   StoresRepository,
 } from '../src/stores/stores.repository.js';
 import { readCredentialsRow } from './credentials-rows.js';
@@ -374,7 +374,9 @@ describe('StoresRepository (e2e)', () => {
     it('hands the refresh the keys it locked, with the shop domain', async () => {
       const installation = createInstallation();
       const { storeId } = await repository.installStore(installation);
-      const refresh = vi.fn<RefreshKeys>(() => Promise.resolve(undefined));
+      const refresh = vi.fn<StoreCredentialsRefresher>(() =>
+        Promise.resolve(undefined),
+      );
 
       await repository.refreshStoreCredentials(storeId, refresh);
 
@@ -404,7 +406,7 @@ describe('StoresRepository (e2e)', () => {
 
     it('returns nothing for a store that has no keys, without calling the refresh', async () => {
       const storeId = await repository.create(createNewStore());
-      const refresh = vi.fn<RefreshKeys>();
+      const refresh = vi.fn<StoreCredentialsRefresher>();
 
       expect(
         await repository.refreshStoreCredentials(storeId, refresh),
@@ -416,7 +418,7 @@ describe('StoresRepository (e2e)', () => {
       const installation = createInstallation();
       const { storeId } = await repository.installStore(installation);
       const fresh = createNewCredentials();
-      const refresh = vi.fn<RefreshKeys>((locked) =>
+      const refresh = vi.fn<StoreCredentialsRefresher>((locked) =>
         Promise.resolve(
           locked.accessToken === installation.credentials.accessToken
             ? fresh
@@ -474,7 +476,10 @@ describe('StoresRepository (e2e)', () => {
       const installation = createInstallation();
       const { storeId } = await repository.installStore(installation);
 
-      await repository.deleteStoreCredentials(storeId);
+      await repository.deleteStoreCredentials(
+        storeId,
+        installation.credentials.refreshToken,
+      );
 
       expect(
         await readCredentialsRow(repositoryDatabase.database, storeId),
@@ -485,23 +490,44 @@ describe('StoresRepository (e2e)', () => {
       });
     });
 
-    it("leaves every other store's keys as they were", async () => {
-      const other = createInstallation();
+    it("leaves another store's keys as they were, even with the same refresh token", async () => {
+      const installation = createInstallation();
+      const { storeId } = await repository.installStore(installation);
+      const { refreshToken } = installation.credentials;
+      const other = {
+        store: createNewStore(),
+        credentials: { ...createNewCredentials(), refreshToken },
+      };
       const { storeId: otherId } = await repository.installStore(other);
-      const { storeId } = await repository.installStore(createInstallation());
 
-      await repository.deleteStoreCredentials(storeId);
+      await repository.deleteStoreCredentials(storeId, refreshToken);
 
       expect(
         await readCredentialsRow(repositoryDatabase.database, otherId),
       ).toMatchObject(other.credentials);
     });
 
+    it('leaves the keys alone when they hold a newer refresh token', async () => {
+      const first = createInstallation();
+      const { storeId } = await repository.installStore(first);
+      const again = createReinstallation(first.store.shopifyId);
+      await repository.installStore(again);
+
+      await repository.deleteStoreCredentials(
+        storeId,
+        first.credentials.refreshToken,
+      );
+
+      expect(
+        await readCredentialsRow(repositoryDatabase.database, storeId),
+      ).toMatchObject(again.credentials);
+    });
+
     it('accepts a store that has no keys', async () => {
       const storeId = await repository.create(createNewStore());
 
       await expect(
-        repository.deleteStoreCredentials(storeId),
+        repository.deleteStoreCredentials(storeId, 'refused-refresh-token'),
       ).resolves.toBeUndefined();
     });
   });

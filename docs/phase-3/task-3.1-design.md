@@ -358,7 +358,7 @@ test/                installation.e2e-spec.ts   access-tokens.e2e-spec.ts
 
 ### 5.3 A working key
 
-`accessTokensService.findWorkingToken(storeId)`:
+`accessTokensService.getStoreAccessToken(storeId)`:
 
 1. Read the keys row with its store's shop domain. None → `StoreMustAuthorizeError`.
 2. More than 5 minutes left → the access token.
@@ -380,7 +380,7 @@ StoresRepository (added):
   uninstallStore(storeId, uninstalledAt): Promise<void>  // uninstalled_at, keys deleted
   findStoreCredentials(storeId): Promise<StoreCredentials | undefined>
   refreshStoreCredentials(storeId, refresh): Promise<StoreCredentials>   // the locked refresh
-  deleteStoreCredentials(storeId): Promise<void>
+  deleteStoreCredentials(storeId, refreshToken): Promise<void>   // only the keys Shopify refused
 ```
 
 `StoreCredentials` is the keys row plus the store's `shopDomain`. Every query says the store id.

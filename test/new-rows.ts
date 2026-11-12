@@ -49,6 +49,11 @@ export function createReinstallation(shopifyId: number): Installation {
   };
 }
 
+export function createInstallationExpiringAt(expiresAt: Date): Installation {
+  const { store, credentials } = createInstallation();
+  return { store, credentials: { ...credentials, expiresAt } };
+}
+
 export function createNewProduct(): NewProduct {
   const shopifyId = nextShopifyId++;
   return {

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
+import { AccessTokensModule } from './access-tokens/access-tokens.module.js';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { LoggingModule } from './common/logging/logging.module.js';
 import { AppConfigModule } from './config/config.module.js';
@@ -16,6 +17,7 @@ import { StoresModule } from './stores/stores.module.js';
     StoresModule,
     ProductsModule,
     OrdersModule,
+    AccessTokensModule,
   ],
   controllers: [],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

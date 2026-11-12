@@ -1,6 +1,6 @@
 export class ShopifyUnavailableError extends Error {
-  constructor() {
-    super('Shopify did not answer. Try again later.');
+  constructor(options?: ErrorOptions) {
+    super('Shopify did not answer. Try again later.', options);
     this.name = 'ShopifyUnavailableError';
   }
 }

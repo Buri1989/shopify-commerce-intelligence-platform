@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq, getTableColumns } from 'drizzle-orm';
+import { and, eq, getTableColumns } from 'drizzle-orm';
 import { DATABASE, type Database } from '../database/database.tokens.js';
 import type { GeneratedColumns } from '../database/generated-columns.js';
 import { refuseDuplicateRow } from '../database/refuse-duplicate-row.js';
@@ -24,7 +24,7 @@ export interface SavedInstallation {
 }
 export type StoreCredentials = typeof storeCredentials.$inferSelect &
   Pick<Store, 'shopDomain'>;
-export type RefreshKeys = (
+export type StoreCredentialsRefresher = (
   locked: StoreCredentials,
 ) => Promise<NewCredentials | undefined>;
 
@@ -100,7 +100,7 @@ export class StoresRepository {
 
   refreshStoreCredentials(
     storeId: number,
-    refresh: RefreshKeys,
+    refresh: StoreCredentialsRefresher,
   ): Promise<StoreCredentials | undefined> {
     return this.database.transaction(async (transaction) => {
       const locked = await lockStoreCredentials(transaction, storeId);
@@ -119,10 +119,18 @@ export class StoresRepository {
     });
   }
 
-  async deleteStoreCredentials(storeId: number): Promise<void> {
+  async deleteStoreCredentials(
+    storeId: number,
+    refreshToken: string,
+  ): Promise<void> {
     await this.database
       .delete(storeCredentials)
-      .where(eq(storeCredentials.storeId, storeId));
+      .where(
+        and(
+          eq(storeCredentials.storeId, storeId),
+          eq(storeCredentials.refreshToken, refreshToken),
+        ),
+      );
   }
 }
 
