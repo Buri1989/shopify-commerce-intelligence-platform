@@ -3,9 +3,14 @@ import type {
   NewOrderItem,
 } from '../src/orders/orders.repository.js';
 import type { NewProduct } from '../src/products/products.repository.js';
-import type { NewStore } from '../src/stores/stores.repository.js';
+import type {
+  Installation,
+  NewCredentials,
+  NewStore,
+} from '../src/stores/stores.repository.js';
 
 let nextShopifyId = 1;
+let nextTokenNumber = 1;
 
 export function createNewStore(): NewStore {
   const shopifyId = nextShopifyId++;
@@ -15,6 +20,32 @@ export function createNewStore(): NewStore {
     name: `Shop ${shopifyId}`,
     currency: 'EUR',
     installedAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+}
+
+export function createNewCredentials(): NewCredentials {
+  const tokenNumber = nextTokenNumber++;
+  return {
+    accessToken: `access-token-${tokenNumber}`,
+    scopes: 'read_products,read_orders',
+    expiresAt: new Date('2026-01-01T01:00:00.000Z'),
+    refreshToken: `refresh-token-${tokenNumber}`,
+    refreshTokenExpiresAt: new Date('2026-04-01T00:00:00.000Z'),
+  };
+}
+
+export function createInstallation(): Installation {
+  return { store: createNewStore(), credentials: createNewCredentials() };
+}
+
+export function createReinstallation(shopifyId: number): Installation {
+  return {
+    store: {
+      ...createNewStore(),
+      shopifyId,
+      installedAt: new Date('2026-02-01T00:00:00.000Z'),
+    },
+    credentials: createNewCredentials(),
   };
 }
 

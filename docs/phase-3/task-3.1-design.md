@@ -354,7 +354,7 @@ test/                installation.e2e-spec.ts   access-tokens.e2e-spec.ts
 3. The code trade: `POST https://{shop}/admin/oauth/access_token`, form-encoded `client_id`,
    `client_secret`, `code`, `expiring=1`, 10 seconds. The answer's `scope` must cover both scopes.
 4. The shop query with the new access token, 10 seconds.
-5. `storesRepository.saveInstallation(…)` in one transaction; one log line; the success page.
+5. `storesRepository.installStore(…)` in one transaction; one log line; the success page.
 
 ### 5.3 A working key
 
@@ -362,7 +362,7 @@ test/                installation.e2e-spec.ts   access-tokens.e2e-spec.ts
 
 1. Read the keys row with its store's shop domain. None → `StoreMustAuthorizeError`.
 2. More than 5 minutes left → the access token.
-3. Otherwise `storesRepository.refreshCredentials(storeId, refresh)`: a transaction locks the row
+3. Otherwise `storesRepository.refreshStoreCredentials(storeId, refresh)`: a transaction locks the row
    with `SELECT … FOR UPDATE`. If another request refreshed it meanwhile, the fresh token is
    returned unchanged. Otherwise `refresh` trades: `POST …/admin/oauth/access_token` with
    `client_id`, `client_secret`, `grant_type=refresh_token`, `refresh_token`, 10 seconds. The new
@@ -376,11 +376,11 @@ Expiry times are computed as now plus Shopify's `expires_in` and `refresh_token_
 
 ```ts
 StoresRepository (added):
-  saveInstallation(installation): Promise<number>        // the store id; create or reinstall
-  markUninstalled(storeId): Promise<void>                 // uninstalled_at, keys deleted
-  findCredentials(storeId): Promise<StoreCredentials | undefined>
-  refreshCredentials(storeId, refresh): Promise<StoreCredentials>   // the locked refresh
-  deleteCredentials(storeId): Promise<void>
+  installStore(installation): Promise<SavedInstallation>   // the store id and whether it was a reinstall
+  uninstallStore(storeId, uninstalledAt): Promise<void>  // uninstalled_at, keys deleted
+  findStoreCredentials(storeId): Promise<StoreCredentials | undefined>
+  refreshStoreCredentials(storeId, refresh): Promise<StoreCredentials>   // the locked refresh
+  deleteStoreCredentials(storeId): Promise<void>
 ```
 
 `StoreCredentials` is the keys row plus the store's `shopDomain`. Every query says the store id.
@@ -447,8 +447,8 @@ The exact field names are copied from the Dashboard into the README at registrat
 - E2E, Shopify faked: a full install saves the store and keys and shows the success page; every
   §5.5 row; a reinstall updates the same store and clears `uninstalled_at`; the cookie's attributes;
   no query value in the logs.
-- Repository, real MySQL: `saveInstallation` creates and reinstalls in one transaction; a failed
-  keys write leaves no store; `markUninstalled`; two concurrent refreshes trade once; another
+- Repository, real MySQL: `installStore` creates and reinstalls in one transaction; a failed
+  keys write leaves no store; `uninstallStore`; two concurrent refreshes trade once; another
   store's id reaches nothing.
 - Infra: the secrets stack, its protection, the app task's new environment and secrets, and the
   migration task without them.
