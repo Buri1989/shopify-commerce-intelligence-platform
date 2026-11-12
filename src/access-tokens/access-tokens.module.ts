@@ -19,6 +19,6 @@ import { ShopifyTokenClient } from './shopify-token-client.js';
     },
     AccessTokensService,
   ],
-  exports: [AccessTokensService],
+  exports: [AccessTokensService, ShopifyTokenClient],
 })
 export class AccessTokensModule {}

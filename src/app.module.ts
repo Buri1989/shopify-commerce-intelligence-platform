@@ -5,6 +5,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter.js';
 import { LoggingModule } from './common/logging/logging.module.js';
 import { AppConfigModule } from './config/config.module.js';
 import { HealthModule } from './health/health.module.js';
+import { InstallationModule } from './installation/installation.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { ProductsModule } from './products/products.module.js';
 import { StoresModule } from './stores/stores.module.js';
@@ -18,6 +19,7 @@ import { StoresModule } from './stores/stores.module.js';
     ProductsModule,
     OrdersModule,
     AccessTokensModule,
+    InstallationModule,
   ],
   controllers: [],
   providers: [{ provide: APP_FILTER, useClass: AllExceptionsFilter }],

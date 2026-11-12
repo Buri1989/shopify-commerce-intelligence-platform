@@ -331,8 +331,8 @@ src/access-tokens/   access-tokens.module.ts   access-tokens.service.ts
                      shopify-token-client.ts
 src/installation/    installation.module.ts    installation.controller.ts
                      installation.service.ts   shopify-shop-client.ts
-                     is-shop-domain.ts         verify-shopify-hmac.ts
-                     create-authorize-url.ts   state-cookie.ts
+                     is-shop-domain.ts                 verify-shopify-hmac.ts
+                     create-shopify-authorize-url.ts   oauth-state-cookie.ts
 src/app.setup.ts     cookie-parser with COOKIE_SECRET
 infra/lib/secrets/   secrets-stack.ts
 infra/lib/app/       resolve-shopify-environment.ts   resolve-app-secrets.ts

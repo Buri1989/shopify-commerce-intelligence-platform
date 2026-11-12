@@ -1,6 +1,6 @@
 import { HttpStatus } from '@nestjs/common';
 import { z } from 'zod';
-import { ShopifyUnavailableError } from '../common/errors/shopify-unavailable.error.js';
+import { sendShopifyRequest } from '../common/shopify/send-shopify-request.js';
 import type { Env } from '../config/env.schema.js';
 import type { NewCredentials } from '../stores/stores.repository.js';
 import { ShopifyRefusedError } from './shopify-refused.error.js';
@@ -10,7 +10,6 @@ export type ShopifyClientSettings = Pick<
   'SHOPIFY_CLIENT_ID' | 'SHOPIFY_CLIENT_SECRET'
 >;
 
-const ANSWER_TIME_LIMIT_MILLISECONDS = 10_000;
 const MILLISECONDS_PER_SECOND = 1000;
 const FORM_HEADERS = {
   'Content-Type': 'application/x-www-form-urlencoded',
@@ -61,37 +60,22 @@ export class ShopifyTokenClient {
     return readNewCredentials(response);
   }
 
-  private async postTokenForm(
+  private postTokenForm(
     shopDomain: string,
     fields: Record<string, string>,
   ): Promise<Response> {
-    const response = await fetch(
+    return sendShopifyRequest(
       `https://${shopDomain}/admin/oauth/access_token`,
       {
-        method: 'POST',
         headers: FORM_HEADERS,
         body: new URLSearchParams({
           client_id: this.settings.SHOPIFY_CLIENT_ID,
           client_secret: this.settings.SHOPIFY_CLIENT_SECRET,
           ...fields,
         }).toString(),
-        signal: AbortSignal.timeout(ANSWER_TIME_LIMIT_MILLISECONDS),
       },
-    ).catch((cause: unknown) => {
-      throw new ShopifyUnavailableError({ cause });
-    });
-    if (isShopifyUnavailable(response.status)) {
-      throw new ShopifyUnavailableError();
-    }
-    return response;
+    );
   }
-}
-
-function isShopifyUnavailable(status: number): boolean {
-  return (
-    status === HttpStatus.TOO_MANY_REQUESTS ||
-    status >= HttpStatus.INTERNAL_SERVER_ERROR
-  );
 }
 
 async function readNewCredentials(response: Response): Promise<NewCredentials> {

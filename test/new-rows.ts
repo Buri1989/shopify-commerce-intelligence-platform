@@ -1,3 +1,4 @@
+import type { ShopDetails } from '../src/installation/shopify-shop-client.js';
 import type {
   NewOrder,
   NewOrderItem,
@@ -21,6 +22,11 @@ export function createNewStore(): NewStore {
     currency: 'EUR',
     installedAt: new Date('2026-01-01T00:00:00.000Z'),
   };
+}
+
+export function createShopDetails(): ShopDetails {
+  const { shopifyId, shopDomain, name, currency } = createNewStore();
+  return { shopifyId, shopDomain, name, currency };
 }
 
 export function createNewCredentials(): NewCredentials {
