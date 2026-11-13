@@ -25,6 +25,7 @@ describe('resolveStageConfig', () => {
       apiDomainName: 'api.commerce-intelligence.click',
       githubRepositoryIdentity:
         'Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906',
+      shopifyClientId: 'fdde7617c4e02a2d600cbf39087817fd',
     });
   });
 
