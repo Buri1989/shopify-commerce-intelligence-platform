@@ -335,7 +335,7 @@ src/installation/    installation.module.ts    installation.controller.ts
                      create-shopify-authorize-url.ts   oauth-state-cookie.ts
 src/app.setup.ts     cookie-parser with COOKIE_SECRET
 infra/lib/secrets/   secrets-stack.ts
-infra/lib/app/       resolve-shopify-environment.ts   resolve-app-secrets.ts
+infra/lib/app/       resolve-app-container-environment.ts   resolve-app-container-secrets.ts
 infra/lib/config/    stage-config.ts (shopifyClientId)
 infra/bin/app.ts     the seventh stack
 test/                installation.e2e-spec.ts   access-tokens.e2e-spec.ts
@@ -417,9 +417,9 @@ or `erd.spec.ts` fails.
 - `-secrets` stack: `commerce-intelligence-dev/shopify-client-secret`, which starts with a random
   placeholder AWS makes so no value is ever written in code, and
   `commerce-intelligence-dev/cookie-secret`, generated. Termination protection on.
-- The app's task definition only: `resolveShopifyEnvironment(config)` adds `SHOPIFY_CLIENT_ID` and
-  `SHOPIFY_CALLBACK_URL`; `resolveAppSecrets(secrets)` adds the two ECS secrets. The migration task
-  definition does not change.
+- The app's task definition only: `resolveAppContainerEnvironment(config)` adds `SHOPIFY_CLIENT_ID`
+  and `SHOPIFY_CALLBACK_URL`; `resolveAppContainerSecrets(appSecrets)` adds the two ECS secrets. The
+  migration task definition does not change.
 - After the first deploy, Boris pastes the real secret with `aws secretsmanager put-secret-value`
   and, on his word, the service is restarted so the task reads it (ECS reads secrets at task start).
 

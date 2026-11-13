@@ -17,6 +17,7 @@ import {
   RegistryStack,
   registryStackId,
 } from '../lib/registry/registry-stack.js';
+import { SecretsStack, secretsStackId } from '../lib/secrets/secrets-stack.js';
 
 const DEFAULT_STAGE = 'dev';
 
@@ -34,6 +35,7 @@ const data = new DataStack(app, dataStackId(config.stage), {
 const registry = new RegistryStack(app, registryStackId(config.stage), {
   config,
 });
+const secrets = new SecretsStack(app, secretsStackId(config.stage), { config });
 const taskStackProps: TaskStackProps = {
   config,
   vpc: network.vpc,
@@ -52,4 +54,7 @@ new DeliveryStack(app, deliveryStackId(config.stage), {
   repository: registry.repository,
   migration,
 });
-new AppStack(app, appStackId(config.stage), taskStackProps);
+new AppStack(app, appStackId(config.stage), {
+  ...taskStackProps,
+  appSecrets: secrets.appSecrets,
+});

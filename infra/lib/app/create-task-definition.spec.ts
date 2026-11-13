@@ -1,6 +1,7 @@
 import { Match, type Template } from 'aws-cdk-lib/assertions';
 import { synthesizeAppStack } from '../../test/synthesize-app-stack.js';
 import {
+  expectStackOutput,
   findOnlyResourceId,
   findPolicyStatementsOfRole,
   readResourceProperties,
@@ -9,12 +10,18 @@ import {
 import { resolveStageConfig } from '../config/stage-config.js';
 
 const DATA_STACK = 'commerce-intelligence-dev-data';
+const SECRETS_STACK = 'commerce-intelligence-dev-secrets';
 const databaseSecretArn = {
   'Fn::GetStackOutput': expect.objectContaining({
     StackName: DATA_STACK,
     OutputName: expect.stringContaining('DatabaseAdminSecret'),
   }),
 };
+const shopifyClientSecretArn = expectStackOutput(
+  SECRETS_STACK,
+  'ShopifyClientSecret',
+);
+const cookieSecretArn = expectStackOutput(SECRETS_STACK, 'CookieSecret');
 
 describe('createTaskDefinition', () => {
   let template: Template;
@@ -81,10 +88,15 @@ describe('createTaskDefinition', () => {
       { Name: 'DB_NAME', Value: 'commerce_intelligence' },
       { Name: 'DB_POOL_SIZE', Value: '10' },
       { Name: 'DB_SSL_CA_PATH', Value: '/app/certs/eu-north-1-bundle.pem' },
+      { Name: 'SHOPIFY_CLIENT_ID', Value: 'fdde7617c4e02a2d600cbf39087817fd' },
+      {
+        Name: 'SHOPIFY_CALLBACK_URL',
+        Value: 'https://api.commerce-intelligence.click/installation/callback',
+      },
     ]);
   });
 
-  it('hands the login to the container as secrets, read from the data stack secret at task start', () => {
+  it('hands the login and the two app secrets to the container as secrets, read at task start', () => {
     expect(taskDefinition.ContainerDefinitions[0].Secrets).toEqual([
       {
         Name: 'DB_USER',
@@ -94,6 +106,8 @@ describe('createTaskDefinition', () => {
         Name: 'DB_PASSWORD',
         ValueFrom: { 'Fn::Join': ['', [databaseSecretArn, ':password::']] },
       },
+      { Name: 'SHOPIFY_CLIENT_SECRET', ValueFrom: shopifyClientSecretArn },
+      { Name: 'COOKIE_SECRET', ValueFrom: cookieSecretArn },
     ]);
   });
 
@@ -112,7 +126,7 @@ describe('createTaskDefinition', () => {
     });
   });
 
-  it('lets the execution role pull only this image, write only this log group and read only the database secret', () => {
+  it('lets the execution role pull only this image, write only this log group and read only the database and app secrets', () => {
     const executionRoleId = taskDefinition.ExecutionRoleArn['Fn::GetAtt'][0];
     expect(findPolicyStatementsOfRole(template, executionRoleId)).toEqual([
       {
@@ -145,7 +159,7 @@ describe('createTaskDefinition', () => {
           'secretsmanager:GetSecretValue',
         ],
         Effect: 'Allow',
-        Resource: databaseSecretArn,
+        Resource: [databaseSecretArn, cookieSecretArn, shopifyClientSecretArn],
       },
     ]);
   });
