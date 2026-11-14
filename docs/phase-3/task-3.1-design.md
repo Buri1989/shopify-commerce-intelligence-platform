@@ -470,9 +470,9 @@ show the implementation in chat → approval → write it → run it green → r
 9. Boris registers the app in the Dev Dashboard (§5.9); the client id into the stage config.
 10. Infra: the secrets stack, the app task's settings, `bin/app.ts`; `npm run infra:check`.
 11. Docs: the README, `docs/architecture.md`, `AGENTS.md`.
-12. Gate; push; the pull request; checks green; Boris merges, which deploys. On his word: the secret
+12. The questions doc, Boris answering one question at a time.
+13. Gate; push; the pull request; checks green; Boris merges, which deploys. On his word: the secret
     pasted, the service restarted. Install on two development stores, reinstall one; `cdk diff` clean.
-13. The questions doc, Boris answering one question at a time.
 
 Commits happen when Boris says so.
 

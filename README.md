@@ -556,5 +556,5 @@ docs/                the assignment, per-task design and questions docs, and the
 - `docs/phase-2/task-2.2-design.md` and `task-2.2-questions.md`: the schema, the ERD, keys, pointers, delete rules
 - `docs/phase-2/task-2.3-design.md` and `task-2.3-questions.md`: migrations, the one-off task, the lock, the backward-compatible strategy
 - `docs/phase-2/task-2.4-design.md`, `task-2.4-questions.md` and `task-2.4-query-analysis.md`: repositories, transactions, paging, the two indexes and what they do
-- `docs/phase-3/task-3.1-design.md`: the Shopify install, its checks, the expiring keys and their refresh, the secrets stack
+- `docs/phase-3/task-3.1-design.md` and `task-3.1-questions.md`: the Shopify install, its checks, the expiring keys and their refresh, the secrets stack
 - `docs/architecture.md`: the environment as deployed, updated by every task that changes it
