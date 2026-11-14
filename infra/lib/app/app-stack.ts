@@ -5,6 +5,7 @@ import type { Construct } from 'constructs';
 import { PROJECT_NAME } from '../config/project-name.js';
 import { importImmutableSecurityGroup } from '../network/import-immutable-security-group.js';
 import { applyProjectTags } from '../project-tags.js';
+import type { AppSecrets } from '../secrets/create-app-secrets.js';
 import {
   createApiCertificate,
   createApiRecord,
@@ -18,14 +19,18 @@ import { createService } from './create-service.js';
 import { createTaskDefinition } from './create-task-definition.js';
 import type { TaskStackProps } from './task-stack-props.js';
 
+export type AppStackProps = TaskStackProps & {
+  readonly appSecrets: AppSecrets;
+};
+
 export class AppStack extends Stack {
   readonly cluster: ecs.Cluster;
   readonly service: ecs.FargateService;
   readonly loadBalancer: elbv2.ApplicationLoadBalancer;
 
-  constructor(scope: Construct, id: string, props: TaskStackProps) {
+  constructor(scope: Construct, id: string, props: AppStackProps) {
     super(scope, id, { env: { region: props.config.region } });
-    const { config, repository, database, imageTag } = props;
+    const { config, repository, database, imageTag, appSecrets } = props;
     this.cluster = createCluster(this, props.vpc, config);
     const logGroup = createAppLogGroup(this, config);
     const taskDefinition = createTaskDefinition(this, {
@@ -33,6 +38,7 @@ export class AppStack extends Stack {
       imageTag,
       logGroup,
       database,
+      appSecrets,
       config,
     });
     const hostedZone = importHostedZone(this, config);

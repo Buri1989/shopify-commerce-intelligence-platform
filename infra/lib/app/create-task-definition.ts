@@ -5,7 +5,10 @@ import type * as logs from 'aws-cdk-lib/aws-logs';
 import type { Construct } from 'constructs';
 import type { StageConfig } from '../config/stage-config.js';
 import type { DatabaseConnection } from '../data/database-connection.js';
+import type { AppSecrets } from '../secrets/create-app-secrets.js';
 import { createEcsTaskRole } from './create-ecs-task-role.js';
+import { resolveAppContainerEnvironment } from './resolve-app-container-environment.js';
+import { resolveAppContainerSecrets } from './resolve-app-container-secrets.js';
 import { resolveContainerEnvironment } from './resolve-container-environment.js';
 import { resolveContainerSecrets } from './resolve-container-secrets.js';
 import { resolveTaskPlatform } from './resolve-task-platform.js';
@@ -18,11 +21,16 @@ export type TaskDefinitionOptions = {
   readonly config: StageConfig;
 };
 
+export type AppTaskDefinitionOptions = TaskDefinitionOptions & {
+  readonly appSecrets: AppSecrets;
+};
+
 export function createTaskDefinition(
   scope: Construct,
-  options: TaskDefinitionOptions,
+  options: AppTaskDefinitionOptions,
 ): ecs.FargateTaskDefinition {
-  const { repository, imageTag, logGroup, database, config } = options;
+  const { repository, imageTag, logGroup, database, config, appSecrets } =
+    options;
   const taskDefinition = new ecs.FargateTaskDefinition(
     scope,
     'TaskDefinition',
@@ -42,8 +50,14 @@ export function createTaskDefinition(
   );
   taskDefinition.addContainer(CONTAINER_NAME, {
     image: ecs.ContainerImage.fromEcrRepository(repository, imageTag),
-    environment: resolveContainerEnvironment(config, database),
-    secrets: resolveContainerSecrets(database),
+    environment: {
+      ...resolveContainerEnvironment(config, database),
+      ...resolveAppContainerEnvironment(config),
+    },
+    secrets: {
+      ...resolveContainerSecrets(database),
+      ...resolveAppContainerSecrets(appSecrets),
+    },
     portMappings: [{ containerPort: config.applicationPort }],
     logging: ecs.LogDrivers.awsLogs({
       logGroup,

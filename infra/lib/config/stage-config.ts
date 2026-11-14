@@ -20,6 +20,7 @@ export type StageConfig = {
   readonly hostedZoneName: string;
   readonly apiDomainName: string;
   readonly githubRepositoryIdentity: string;
+  readonly shopifyClientId: string;
 };
 
 export function resolveStageConfig(stageName: string): StageConfig {
@@ -77,6 +78,7 @@ const stageConfigs: ReadonlyMap<string, StageConfig> = new Map([
       // gh api repos/Buri1989/shopify-commerce-intelligence-platform/actions/oidc/customization/sub
       githubRepositoryIdentity:
         'Buri1989@42779452/shopify-commerce-intelligence-platform@1422111906',
+      shopifyClientId: 'fdde7617c4e02a2d600cbf39087817fd',
     },
   ],
 ]);

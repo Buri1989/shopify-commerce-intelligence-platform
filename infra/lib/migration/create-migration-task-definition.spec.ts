@@ -1,4 +1,5 @@
 import { Match, type Template } from 'aws-cdk-lib/assertions';
+import { withoutAppOnlySettings } from '../../test/container-settings.js';
 import { synthesizeAppStack } from '../../test/synthesize-app-stack.js';
 import { synthesizeMigrationStack } from '../../test/synthesize-migration-stack.js';
 import {
@@ -57,15 +58,19 @@ describe('createMigrationTaskDefinition', () => {
     expect(container.PortMappings).toBeUndefined();
   });
 
-  it("carries the app's environment and secrets, word for word", () => {
+  it("carries the app's environment and secrets word for word, without the app's own", () => {
     const appTemplate = synthesizeAppStack(devConfig, 'abc123');
     const appContainer = readResourceProperties(
       appTemplate,
       findOnlyResourceId(appTemplate, 'AWS::ECS::TaskDefinition'),
     ).ContainerDefinitions[0];
 
-    expect(container.Environment).toEqual(appContainer.Environment);
-    expect(container.Secrets).toEqual(appContainer.Secrets);
+    expect(container.Environment).toEqual(
+      withoutAppOnlySettings(appContainer.Environment),
+    );
+    expect(container.Secrets).toEqual(
+      withoutAppOnlySettings(appContainer.Secrets),
+    );
   });
 
   it('writes every log line to the migration log group before going on', () => {

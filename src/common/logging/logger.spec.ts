@@ -1,17 +1,6 @@
+import { createCapturingDestination } from '../../../test/capturing-destination.js';
 import { createApplicationLogger } from './logger.js';
 import { requestContextStorage } from './request-context.js';
-
-type LogEntry = Record<string, unknown>;
-
-function createCapturingDestination() {
-  const entries: LogEntry[] = [];
-  const destination = {
-    write: (serializedLine: string) => {
-      entries.push(JSON.parse(serializedLine) as LogEntry);
-    },
-  };
-  return { entries, destination };
-}
 
 describe('createApplicationLogger', () => {
   it('writes one JSON line with a level label, ISO time, msg, and base fields', () => {

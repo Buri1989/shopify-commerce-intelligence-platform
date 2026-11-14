@@ -1,10 +1,9 @@
 import { z } from 'zod';
 
-export const envSchema = z.object({
+const migrationEnvSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
     .default('development'),
-  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
@@ -19,10 +18,33 @@ export const envSchema = z.object({
   DB_SSL_CA_PATH: z.string().min(1).optional(),
 });
 
+const envSchema = z.object({
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  ...migrationEnvSchema.shape,
+  SHOPIFY_CLIENT_ID: z.string().min(1),
+  SHOPIFY_CALLBACK_URL: z.url(),
+  SHOPIFY_CLIENT_SECRET: z.string().min(1),
+  COOKIE_SECRET: z.string().min(1),
+});
+
+export type MigrationEnv = z.infer<typeof migrationEnvSchema>;
 export type Env = z.infer<typeof envSchema>;
 
 export function validateEnv(raw: Record<string, unknown>): Env {
-  const result = envSchema.safeParse(raw);
+  return parseEnv(envSchema, raw);
+}
+
+export function validateMigrationEnv(
+  raw: Record<string, unknown>,
+): MigrationEnv {
+  return parseEnv(migrationEnvSchema, raw);
+}
+
+function parseEnv<Schema extends z.ZodType>(
+  schema: Schema,
+  raw: Record<string, unknown>,
+): z.infer<Schema> {
+  const result = schema.safeParse(raw);
   if (result.success) {
     return result.data;
   }

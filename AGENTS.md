@@ -323,3 +323,48 @@ full reference. Apply them while writing, not after. The rules that come up most
 - `npm run analyze:queries` runs by hand and stays out of the gate. It measures the repository's own
   query through Drizzle's logger. A new index is measured before it is kept, on rows that mix stores
   the way a real table does. Rows read are the evidence; times only show the size of a difference.
+
+## Conventions from Task 3.1
+
+- Seven stacks: `-secrets` joins the six, with `terminationProtection: true` so the pasted Shopify
+  secret survives a pause. It holds only the app's two secrets,
+  `commerce-intelligence-<stage>/shopify-client-secret` and `…/cookie-secret`, created by AWS with
+  its default generation settings and deleted with the stack. Those settings never change: a change
+  writes a new version over the pasted value. The paste and the restart are in the README, Shopify
+  app.
+- Only the app's task gets the Shopify settings, from `resolveAppContainerEnvironment` and
+  `resolveAppContainerSecrets` next to the shared `resolveContainer*` in `infra/lib/app/`; the
+  migration spec compares the two task definitions through `withoutAppOnlySettings`. The settings
+  schema splits the same way: `validateMigrationEnv` for `migrate.ts`, `validateEnv` for the app. A
+  new app-only setting goes into `envSchema`, `.env.example`, `test/e2e-setup.ts` and one of the
+  two `resolveApp*` functions.
+- Every request to Shopify goes through `sendShopifyRequest` in `src/common/shopify/`: POST, a
+  10-second limit, and a 429, a 5xx or no answer as `ShopifyUnavailableError` (503). A refusal the
+  caller must act on is `ShopifyRefusedError`, which the caller turns into its own answer. The Admin
+  API version is a constant in the file that sends the query.
+- A store's access token comes only from `AccessTokensService.getStoreAccessToken(storeId)`. With 5
+  minutes or less left it refreshes inside `StoresRepository.refreshStoreCredentials`, under
+  `SELECT … FOR UPDATE`; a refused refresh deletes only the refused keys. `StoreMustAuthorizeError`
+  (409) means the store installs again; background work tells it from `ShopifyUnavailableError` by
+  class.
+- A store and its keys are one table group in `StoresRepository`; `installStore` and
+  `uninstallStore` write both in one transaction.
+- The install's checks are our own functions in `src/installation/`, one unit spec each:
+  `isShopDomain`, `verifyShopifyHmac`, `hasRequestedScopes`. `/installation/start` checks only the
+  shop; the callback checks the shop, then the HMAC, then the state, before any trade. The state is
+  the signed `oauth_state` cookie of `oauth-state-cookie.ts`, read through `cookie-parser` with
+  `COOKIE_SECRET` in `app.setup.ts`.
+- `REQUESTED_SCOPES` and the Dev Dashboard's Scopes field change together. Every Dashboard setting
+  is in the README's table, changed in the same pull request as the Dashboard.
+- Tests: a piece that calls Shopify has a unit spec with `fetch` replaced by `vi.stubGlobal`, which
+  checks the exact request and how each answer is read. E2E specs replace the pieces themselves,
+  `ShopifyTokenClient` and `ShopifyShopClient`, through `createTestApp([], [{ provide, useValue }])`,
+  never Shopify's address. The install and access-token e2e specs run on their own migrated
+  databases, `installation_e2e` and `access_tokens_e2e`. `test/shopify-hmac.ts` signs a callback as
+  Shopify does; `test/capturing-destination.ts` captures log lines.
+- A new spec's helpers go into `test/<topic>.ts` from the first one, as
+  `test/installation-requests.ts` does; the spec holds the `describe` and `it` blocks.
+- A method name is the real verb plus the full object, saying whose it is: `installStore`,
+  `findStoreCredentials`, `getStoreAccessToken`. No soft verb in front of the real one (`save`,
+  `mark`, `record`, `set`) and no event noun (`Installation`); the object is named as its type or
+  table names it.
