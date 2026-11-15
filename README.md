@@ -241,6 +241,16 @@ the store id, the shop's domain and `reinstalled`. A reinstall, and a store that
 again after Shopify refused its keys, take the same link. A failed install answers with the error
 shape above, its message saying what to do next.
 
+**Rotating the client secret.** When the secret may have leaked, replace it in this order:
+
+1. In the Dev Dashboard, open the app's Settings, click Rotate next to the client secret, then
+   Generate new secret. Both secrets now show, marked Old and New.
+2. Copy the New one, paste it with the commands above, and restart the service.
+3. Click Revoke next to the Old one. Until then Shopify signs the install callback with the old
+   secret, so every install answers 403, "This install link was not signed by Shopify."
+4. Open each store's install link again. Keys made under the old secret stop working once it is
+   revoked; a reinstall gives the store new ones.
+
 ## Docker
 
 ```bash
