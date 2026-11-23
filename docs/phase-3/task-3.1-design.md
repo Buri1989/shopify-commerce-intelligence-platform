@@ -320,6 +320,7 @@ stack, the two routes and its "Last updated" line. `AGENTS.md` gains "Convention
 ```text
 src/common/errors/   store-must-authorize.error.ts   store-must-authorize.mapper.ts
                      shopify-unavailable.error.ts    shopify-unavailable.mapper.ts
+src/common/shopify/  send-shopify-request.ts
 src/config/          env.schema.ts (split: migrationEnvSchema, envSchema)
 src/database/schema/ store-credentials.ts (two columns, expires_at required)
 src/database/migrations/
@@ -333,8 +334,9 @@ src/installation/    installation.module.ts    installation.controller.ts
                      installation.service.ts   shopify-shop-client.ts
                      is-shop-domain.ts                 verify-shopify-hmac.ts
                      create-shopify-authorize-url.ts   oauth-state-cookie.ts
+                     requested-scopes.ts
 src/app.setup.ts     cookie-parser with COOKIE_SECRET
-infra/lib/secrets/   secrets-stack.ts
+infra/lib/secrets/   secrets-stack.ts   create-app-secrets.ts
 infra/lib/app/       resolve-app-container-environment.ts   resolve-app-container-secrets.ts
 infra/lib/config/    stage-config.ts (shopifyClientId)
 infra/bin/app.ts     the seventh stack
@@ -379,7 +381,7 @@ StoresRepository (added):
   installStore(installation): Promise<SavedInstallation>   // the store id and whether it was a reinstall
   uninstallStore(storeId, uninstalledAt): Promise<void>  // uninstalled_at, keys deleted
   findStoreCredentials(storeId): Promise<StoreCredentials | undefined>
-  refreshStoreCredentials(storeId, refresh): Promise<StoreCredentials>   // the locked refresh
+  refreshStoreCredentials(storeId, refresh): Promise<StoreCredentials | undefined>   // the locked refresh; undefined when the keys are gone
   deleteStoreCredentials(storeId, refreshToken): Promise<void>   // only the keys Shopify refused
 ```
 
@@ -401,9 +403,8 @@ StoresRepository (added):
 ### 5.6 Logs
 
 One info line per install, `store installed`, with the store id, the shop domain and whether it was a
-reinstall, and one per uninstall. The request and error logs record the path only, so the code, HMAC
-and state never reach them; an e2e test proves it for the callback. Tokens and secrets are never
-logged.
+reinstall. The request and error logs record the path only, so the code, HMAC and state never reach
+them; an e2e test proves it for the callback. Tokens and secrets are never logged.
 
 ### 5.7 The migration files
 
@@ -429,6 +430,7 @@ or `erd.spec.ts` fails.
 | --- | --- |
 | App URL | `https://api.commerce-intelligence.click/installation/start` |
 | Allowed redirection URL | `https://api.commerce-intelligence.click/installation/callback` |
+| Scopes | `read_products,read_orders` |
 | Embedded in Shopify admin | off |
 | Distribution | public, unlisted |
 | Managed installation | off |
