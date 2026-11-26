@@ -9,7 +9,7 @@ import {
   createApplicationLogger,
 } from '../src/common/logging/logger.js';
 import { DATABASE } from '../src/database/database.tokens.js';
-import { ShopifyShopClient } from '../src/installation/shopify-shop-client.js';
+import { ShopifyShopRetriever } from '../src/retrieval/shopify-shop-retriever.js';
 import { StoresRepository } from '../src/stores/stores.repository.js';
 import { createCapturingDestination } from './capturing-destination.js';
 import { createTestApp } from './create-test-app.js';
@@ -28,7 +28,7 @@ import { readInstallationRows } from './installation-rows.js';
 import {
   createNewCredentials,
   createNewStore,
-  createShopDetails,
+  createRetrievedShop,
 } from './new-rows.js';
 import {
   createRepositoryDatabase,
@@ -60,7 +60,7 @@ describe('installation (e2e)', () => {
   let app: INestApplication<App>;
   const exchangeAuthorizationCode =
     vi.fn<ShopifyTokenClient['exchangeAuthorizationCode']>();
-  const fetchShopDetails = vi.fn<ShopifyShopClient['fetchShopDetails']>();
+  const retrieveShop = vi.fn<ShopifyShopRetriever['retrieveShop']>();
   const { entries, destination } = createCapturingDestination();
 
   beforeAll(async () => {
@@ -74,7 +74,7 @@ describe('installation (e2e)', () => {
           provide: ShopifyTokenClient,
           useValue: { exchangeAuthorizationCode },
         },
-        { provide: ShopifyShopClient, useValue: { fetchShopDetails } },
+        { provide: ShopifyShopRetriever, useValue: { retrieveShop } },
         {
           provide: APPLICATION_LOGGER,
           useValue: createApplicationLogger(
@@ -93,7 +93,7 @@ describe('installation (e2e)', () => {
   afterEach(() => {
     vi.useRealTimers();
     exchangeAuthorizationCode.mockReset();
-    fetchShopDetails.mockReset();
+    retrieveShop.mockReset();
     entries.length = 0;
   });
 
@@ -164,10 +164,10 @@ describe('installation (e2e)', () => {
 
   describe('GET /installation/callback', () => {
     it('saves the store and its keys and shows the success page', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       const credentials = createNewCredentials();
       exchangeAuthorizationCode.mockResolvedValue(credentials);
-      fetchShopDetails.mockResolvedValue(shop);
+      retrieveShop.mockResolvedValue(shop);
 
       const response = await installShop(app, shop.shopDomain);
 
@@ -185,10 +185,10 @@ describe('installation (e2e)', () => {
     });
 
     it('trades the code with the shop, then asks the shop for its details with the new access token', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       const credentials = createNewCredentials();
       exchangeAuthorizationCode.mockResolvedValue(credentials);
-      fetchShopDetails.mockResolvedValue(shop);
+      retrieveShop.mockResolvedValue(shop);
 
       await installShop(app, shop.shopDomain);
 
@@ -196,14 +196,14 @@ describe('installation (e2e)', () => {
         shop.shopDomain,
         CALLBACK_CODE,
       );
-      expect(fetchShopDetails).toHaveBeenCalledExactlyOnceWith(
+      expect(retrieveShop).toHaveBeenCalledExactlyOnceWith(
         shop.shopDomain,
         credentials.accessToken,
       );
     });
 
     it('updates the same store, clears uninstalled_at and replaces the keys on a reinstall', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       const { storeId } = await repository.installStore({
         store: { ...createNewStore(), ...shop, installedAt: EARLIER },
         credentials: createNewCredentials(),
@@ -211,7 +211,7 @@ describe('installation (e2e)', () => {
       await repository.uninstallStore(storeId, EARLIER);
       const credentials = createNewCredentials();
       exchangeAuthorizationCode.mockResolvedValue(credentials);
-      fetchShopDetails.mockResolvedValue({ ...shop, name: 'Renamed Shop' });
+      retrieveShop.mockResolvedValue({ ...shop, name: 'Renamed Shop' });
 
       await installShop(app, shop.shopDomain);
 
@@ -295,7 +295,7 @@ describe('installation (e2e)', () => {
     ])(
       'answers $status and trades nothing for $name',
       async ({ status, message, change }) => {
-        const { shopDomain } = createShopDetails();
+        const { shopDomain } = createRetrievedShop();
         const { state, stateCookie } = await startInstallation(app, shopDomain);
         const query = change(createCallbackQuery(shopDomain, state));
 
@@ -308,7 +308,7 @@ describe('installation (e2e)', () => {
     );
 
     it('answers 403 and trades nothing when the browser sends no state cookie', async () => {
-      const { shopDomain } = createShopDetails();
+      const { shopDomain } = createRetrievedShop();
       const { state } = await startInstallation(app, shopDomain);
 
       const response = await sendCallback(
@@ -340,7 +340,7 @@ describe('installation (e2e)', () => {
     ])(
       'answers $status and saves nothing when $name',
       async ({ status, message, failure }) => {
-        const shop = createShopDetails();
+        const shop = createRetrievedShop();
         exchangeAuthorizationCode.mockRejectedValue(failure);
 
         const response = await installShop(app, shop.shopDomain);
@@ -357,12 +357,12 @@ describe('installation (e2e)', () => {
     );
 
     it('answers 403 and saves nothing when Shopify grants fewer scopes than requested', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       exchangeAuthorizationCode.mockResolvedValue({
         ...createNewCredentials(),
         scopes: 'read_products',
       });
-      fetchShopDetails.mockResolvedValue(shop);
+      retrieveShop.mockResolvedValue(shop);
 
       const response = await installShop(app, shop.shopDomain);
 
@@ -371,16 +371,16 @@ describe('installation (e2e)', () => {
         statusCode: 403,
         message: SCOPES_MESSAGE,
       });
-      expect(fetchShopDetails).not.toHaveBeenCalled();
+      expect(retrieveShop).not.toHaveBeenCalled();
       expect(
         await readInstallationRows(repositoryDatabase.database, shop.shopifyId),
       ).toBeUndefined();
     });
 
     it('answers 503 and saves nothing when Shopify does not answer the shop query', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       exchangeAuthorizationCode.mockResolvedValue(createNewCredentials());
-      fetchShopDetails.mockRejectedValue(new ShopifyUnavailableError());
+      retrieveShop.mockRejectedValue(new ShopifyUnavailableError());
 
       const response = await installShop(app, shop.shopDomain);
 
@@ -395,9 +395,9 @@ describe('installation (e2e)', () => {
     });
 
     it('deletes the state cookie after an install', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       exchangeAuthorizationCode.mockResolvedValue(createNewCredentials());
-      fetchShopDetails.mockResolvedValue(shop);
+      retrieveShop.mockResolvedValue(shop);
 
       const response = await installShop(app, shop.shopDomain);
 
@@ -407,7 +407,7 @@ describe('installation (e2e)', () => {
     });
 
     it('deletes the state cookie after a refused callback', async () => {
-      const { shopDomain } = createShopDetails();
+      const { shopDomain } = createRetrievedShop();
       const { state, stateCookie } = await startInstallation(app, shopDomain);
       const query = { ...createCallbackQuery(shopDomain, state), code: 'x' };
 
@@ -420,9 +420,9 @@ describe('installation (e2e)', () => {
     });
 
     it('logs one info line with the store id, the shop and that the store is new', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       exchangeAuthorizationCode.mockResolvedValue(createNewCredentials());
-      fetchShopDetails.mockResolvedValue(shop);
+      retrieveShop.mockResolvedValue(shop);
 
       await installShop(app, shop.shopDomain);
 
@@ -443,9 +443,9 @@ describe('installation (e2e)', () => {
     });
 
     it('keeps the code, the hmac and the state out of the logs of an install', async () => {
-      const shop = createShopDetails();
+      const shop = createRetrievedShop();
       exchangeAuthorizationCode.mockResolvedValue(createNewCredentials());
-      fetchShopDetails.mockResolvedValue(shop);
+      retrieveShop.mockResolvedValue(shop);
       const { state, stateCookie } = await startInstallation(
         app,
         shop.shopDomain,
@@ -458,7 +458,7 @@ describe('installation (e2e)', () => {
     });
 
     it('keeps the code, the hmac and the state out of the logs of a refused callback', async () => {
-      const { shopDomain } = createShopDetails();
+      const { shopDomain } = createRetrievedShop();
       const { state, stateCookie } = await startInstallation(app, shopDomain);
       const query: CallbackParameters = {
         ...createCallbackQuery(shopDomain, state),

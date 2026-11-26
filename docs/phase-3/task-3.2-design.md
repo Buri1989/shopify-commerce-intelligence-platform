@@ -430,6 +430,7 @@ type RetrievedPage<Row, Cursor = string> = {
   nextCursor: Cursor | null;
   requestedQueryCost: number;
 };
+type RetrievedShop = Pick<InstalledStore, 'shopifyId' | 'shopDomain' | 'name' | 'currency'>;
 type RetrievedProduct = NewProduct;
 type RetrievedProductVariant = Omit<NewProductVariant, 'productId'> & { productShopifyId: number };
 type RetrievedCollection = NewCollection;

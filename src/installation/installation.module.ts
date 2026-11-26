@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { AccessTokensModule } from '../access-tokens/access-tokens.module.js';
+import { RetrievalModule } from '../retrieval/retrieval.module.js';
 import { StoresModule } from '../stores/stores.module.js';
 import { InstallationController } from './installation.controller.js';
 import { InstallationService } from './installation.service.js';
-import { ShopifyShopClient } from './shopify-shop-client.js';
 
 @Module({
-  imports: [AccessTokensModule, StoresModule],
+  imports: [AccessTokensModule, RetrievalModule, StoresModule],
   controllers: [InstallationController],
-  providers: [ShopifyShopClient, InstallationService],
+  providers: [InstallationService],
 })
 export class InstallationModule {}

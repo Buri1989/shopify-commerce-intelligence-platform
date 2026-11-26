@@ -1,9 +1,9 @@
-import type { ShopDetails } from '../src/installation/shopify-shop-client.js';
 import type {
   NewOrder,
   NewOrderItem,
 } from '../src/orders/orders.repository.js';
 import type { NewProduct } from '../src/products/products.repository.js';
+import type { RetrievedShop } from '../src/retrieval/shopify-shop-retriever.js';
 import type {
   Installation,
   NewCredentials,
@@ -24,7 +24,7 @@ export function createNewStore(): NewStore {
   };
 }
 
-export function createShopDetails(): ShopDetails {
+export function createRetrievedShop(): RetrievedShop {
   const { shopifyId, shopDomain, name, currency } = createNewStore();
   return { shopifyId, shopDomain, name, currency };
 }

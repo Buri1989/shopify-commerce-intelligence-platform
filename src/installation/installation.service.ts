@@ -13,13 +13,16 @@ import { ShopifyTokenClient } from '../access-tokens/shopify-token-client.js';
 import { APPLICATION_LOGGER } from '../common/logging/logger.js';
 import type { Env } from '../config/env.schema.js';
 import {
+  type RetrievedShop,
+  ShopifyShopRetriever,
+} from '../retrieval/shopify-shop-retriever.js';
+import {
   type NewCredentials,
   StoresRepository,
 } from '../stores/stores.repository.js';
 import { createShopifyAuthorizeUrl } from './create-shopify-authorize-url.js';
 import { isShopDomain } from './is-shop-domain.js';
 import { hasRequestedScopes } from './requested-scopes.js';
-import { type ShopDetails, ShopifyShopClient } from './shopify-shop-client.js';
 import { verifyShopifyHmac } from './verify-shopify-hmac.js';
 
 const LOG_CONTEXT = 'InstallationService';
@@ -53,8 +56,8 @@ export class InstallationService {
       ShopifyTokenClient,
       'exchangeAuthorizationCode'
     >,
-    @Inject(ShopifyShopClient)
-    private readonly shopClient: Pick<ShopifyShopClient, 'fetchShopDetails'>,
+    @Inject(ShopifyShopRetriever)
+    private readonly shopRetriever: Pick<ShopifyShopRetriever, 'retrieveShop'>,
     @Inject(APPLICATION_LOGGER) private readonly logger: PinoLogger,
   ) {}
 
@@ -72,14 +75,14 @@ export class InstallationService {
   async installStore(
     query: Record<string, unknown>,
     cookieState: string | undefined,
-  ): Promise<ShopDetails> {
+  ): Promise<RetrievedShop> {
     const { shopDomain, code } = this.requireVerifiedCallback(
       query,
       cookieState,
     );
     const credentials = await this.exchangeAuthorizationCode(shopDomain, code);
     requireRequestedScopes(credentials);
-    const shop = await this.shopClient.fetchShopDetails(
+    const shop = await this.shopRetriever.retrieveShop(
       shopDomain,
       credentials.accessToken,
     );
