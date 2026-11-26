@@ -48,25 +48,29 @@ describe('AccessTokensService (e2e)', () => {
     await repositoryDatabase.close();
   });
 
-  it('returns the access token without asking Shopify when more than 5 minutes are left', async () => {
+  it("returns the store's address and access token without asking Shopify when more than 5 minutes are left", async () => {
     const installation = createInstallationExpiringAt(
       JUST_OVER_FIVE_MINUTES_FROM_NOW,
     );
     const { storeId } = await repository.installStore(installation);
 
-    expect(await service.getStoreAccessToken(storeId)).toBe(
-      installation.credentials.accessToken,
-    );
+    expect(await service.getStoreAccess(storeId)).toEqual({
+      shopDomain: installation.store.shopDomain,
+      accessToken: installation.credentials.accessToken,
+    });
     expect(exchangeRefreshToken).not.toHaveBeenCalled();
   });
 
-  it('refreshes when 5 minutes are left, saves the new keys and returns the new access token', async () => {
+  it("refreshes when 5 minutes are left, saves the new keys and returns the store's address with the new access token", async () => {
     const installation = createInstallationExpiringAt(FIVE_MINUTES_FROM_NOW);
     const { storeId } = await repository.installStore(installation);
     const fresh = createNewCredentials();
     exchangeRefreshToken.mockResolvedValue(fresh);
 
-    expect(await service.getStoreAccessToken(storeId)).toBe(fresh.accessToken);
+    expect(await service.getStoreAccess(storeId)).toEqual({
+      shopDomain: installation.store.shopDomain,
+      accessToken: fresh.accessToken,
+    });
     expect(exchangeRefreshToken).toHaveBeenCalledExactlyOnceWith(
       installation.store.shopDomain,
       installation.credentials.refreshToken,
@@ -77,25 +81,28 @@ describe('AccessTokensService (e2e)', () => {
   });
 
   it('asks Shopify once when two requests need a refresh at the same time', async () => {
-    const { storeId } = await repository.installStore(
-      createInstallationExpiringAt(FIVE_MINUTES_FROM_NOW),
-    );
+    const installation = createInstallationExpiringAt(FIVE_MINUTES_FROM_NOW);
+    const { storeId } = await repository.installStore(installation);
     const fresh = createNewCredentials();
     exchangeRefreshToken.mockResolvedValue(fresh);
+    const freshAccess = {
+      shopDomain: installation.store.shopDomain,
+      accessToken: fresh.accessToken,
+    };
 
-    const bothTokens = await Promise.all([
-      service.getStoreAccessToken(storeId),
-      service.getStoreAccessToken(storeId),
+    const bothAccesses = await Promise.all([
+      service.getStoreAccess(storeId),
+      service.getStoreAccess(storeId),
     ]);
 
-    expect(bothTokens).toEqual([fresh.accessToken, fresh.accessToken]);
+    expect(bothAccesses).toEqual([freshAccess, freshAccess]);
     expect(exchangeRefreshToken).toHaveBeenCalledTimes(1);
   });
 
   it('throws StoreMustAuthorizeError for a store that has no keys', async () => {
     const storeId = await repository.create(createNewStore());
 
-    await expect(service.getStoreAccessToken(storeId)).rejects.toThrow(
+    await expect(service.getStoreAccess(storeId)).rejects.toThrow(
       StoreMustAuthorizeError,
     );
     expect(exchangeRefreshToken).not.toHaveBeenCalled();
@@ -107,7 +114,7 @@ describe('AccessTokensService (e2e)', () => {
     );
     exchangeRefreshToken.mockRejectedValue(new ShopifyRefusedError());
 
-    await expect(service.getStoreAccessToken(storeId)).rejects.toThrow(
+    await expect(service.getStoreAccess(storeId)).rejects.toThrow(
       StoreMustAuthorizeError,
     );
     expect(
@@ -120,7 +127,7 @@ describe('AccessTokensService (e2e)', () => {
     const { storeId } = await repository.installStore(installation);
     exchangeRefreshToken.mockRejectedValue(new ShopifyUnavailableError());
 
-    await expect(service.getStoreAccessToken(storeId)).rejects.toThrow(
+    await expect(service.getStoreAccess(storeId)).rejects.toThrow(
       ShopifyUnavailableError,
     );
     expect(

@@ -10,6 +10,8 @@ import { ShopifyTokenClient } from './shopify-token-client.js';
 
 const REFRESH_MARGIN_MILLISECONDS = 5 * 60 * 1000;
 
+export type StoreAccess = Pick<StoreCredentials, 'shopDomain' | 'accessToken'>;
+
 @Injectable()
 export class AccessTokensService {
   constructor(
@@ -21,22 +23,22 @@ export class AccessTokensService {
     >,
   ) {}
 
-  async getStoreAccessToken(storeId: number): Promise<string> {
+  async getStoreAccess(storeId: number): Promise<StoreAccess> {
     const credentials =
       await this.storesRepository.findStoreCredentials(storeId);
     if (credentials === undefined) {
       throw new StoreMustAuthorizeError(storeId);
     }
     if (!isExpiring(credentials)) {
-      return credentials.accessToken;
+      return createStoreAccess(credentials);
     }
-    return this.refreshStoreAccessToken(credentials);
+    return this.refreshStoreAccess(credentials);
   }
 
-  private async refreshStoreAccessToken({
+  private async refreshStoreAccess({
     storeId,
     refreshToken,
-  }: StoreCredentials): Promise<string> {
+  }: StoreCredentials): Promise<StoreAccess> {
     try {
       const refreshed = await this.storesRepository.refreshStoreCredentials(
         storeId,
@@ -45,7 +47,7 @@ export class AccessTokensService {
       if (refreshed === undefined) {
         throw new StoreMustAuthorizeError(storeId);
       }
-      return refreshed.accessToken;
+      return createStoreAccess(refreshed);
     } catch (error) {
       if (!(error instanceof ShopifyRefusedError)) {
         throw error;
@@ -70,4 +72,11 @@ export class AccessTokensService {
 
 function isExpiring({ expiresAt }: StoreCredentials): boolean {
   return expiresAt.getTime() - Date.now() <= REFRESH_MARGIN_MILLISECONDS;
+}
+
+function createStoreAccess({
+  shopDomain,
+  accessToken,
+}: StoreCredentials): StoreAccess {
+  return { shopDomain, accessToken };
 }
