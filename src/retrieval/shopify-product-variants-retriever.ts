@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { NewProductVariant } from '../products/products.repository.js';
+import { PRODUCT_VARIANTS_QUERY } from './queries/shopify-product-variants-query.js';
 import type { RetrievedPage } from './retrieved-page.js';
 import { createShopifyIdSchema } from './shopify-id-schema.js';
 import { createShopifyPageSchema } from './shopify-page-schema.js';
@@ -10,8 +11,6 @@ export type RetrievedProductVariant = Omit<NewProductVariant, 'productId'> & {
   productShopifyId: number;
 };
 
-const PRODUCT_VARIANTS_QUERY =
-  'query ($after: String) { productVariants(first: 250, after: $after) { nodes { id title sku price position product { id } } pageInfo { hasNextPage endCursor } } }';
 const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
 
 const productVariantsDataSchema = z.object({

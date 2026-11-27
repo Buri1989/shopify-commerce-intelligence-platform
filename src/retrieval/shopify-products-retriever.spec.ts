@@ -4,10 +4,27 @@ import {
   STORE_GRAPHQL_URL,
   STORE_ID,
 } from '../../test/store-query-sender.js';
+import { graphql } from './graphql.js';
 import { ShopifyProductsRetriever } from './shopify-products-retriever.js';
 
-const PRODUCTS_QUERY =
-  'query ($after: String) { products(first: 250, after: $after) { nodes { id title handle vendor productType status } pageInfo { hasNextPage endCursor } } }';
+const PRODUCTS_QUERY = graphql`
+  query ($after: String) {
+    products(first: 250, after: $after) {
+      nodes {
+        id
+        title
+        handle
+        vendor
+        productType
+        status
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
 const PRODUCT = {
   id: 'gid://shopify/Product/108828309',
   title: 'Linen shirt',

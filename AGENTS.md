@@ -103,7 +103,7 @@ full reference. Apply them while writing, not after. The rules that come up most
   ours, `is*` is a type guard. One verb per concept across the codebase.
 - A constant stays private in the module that uses it. No shared constants file. Move a
   value only when a second module needs it, into a file named for the concept.
-- Comments only explain why. Never what.
+- No comments. A name says what a comment would.
 - Throw `HttpException`s for deliberate rejections. Anything else reaches the global
   filter as a generic 500 and is logged with its stack.
 - ESM: relative imports end in `.js`.

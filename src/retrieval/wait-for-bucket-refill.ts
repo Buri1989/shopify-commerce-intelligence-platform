@@ -20,12 +20,10 @@ export async function waitForBucketRefill(answer: unknown): Promise<void> {
   const { requestedQueryCost, throttleStatus } =
     throttledAnswerSchema.parse(answer).extensions.cost;
   const missingPoints = requestedQueryCost - throttleStatus.currentlyAvailable;
-  // Multiplying first keeps the wait exact: 180 ÷ 100 × 1000 is 1800.0000000000002.
+  const missingMilliseconds = missingPoints * MILLISECONDS_PER_SECOND;
   const waitMilliseconds = Math.ceil(
-    (missingPoints * MILLISECONDS_PER_SECOND) / throttleStatus.restoreRate,
+    missingMilliseconds / throttleStatus.restoreRate,
   );
-  // Past the longest wait a normal answer can ask for, Shopify's numbers are wrong and waiting
-  // would not help.
   if (waitMilliseconds > LONGEST_WAIT_MILLISECONDS) {
     throw new ShopifyUnavailableError();
   }

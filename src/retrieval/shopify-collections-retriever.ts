@@ -1,7 +1,11 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { NewCollection } from '../collections/collections.repository.js';
-import type { RetrievedPage } from './retrieved-page.js';
+import {
+  COLLECTION_PRODUCTS_QUERY,
+  COLLECTIONS_QUERY,
+} from './queries/shopify-collections-queries.js';
+import { createEmptyLastPage, type RetrievedPage } from './retrieved-page.js';
 import { createShopifyIdSchema } from './shopify-id-schema.js';
 import { createShopifyPageSchema } from './shopify-page-schema.js';
 import { ShopifyStoreQuerySender } from './shopify-store-query-sender.js';
@@ -13,11 +17,6 @@ export type RetrievedCollectionProduct = {
 };
 export type CollectionProductsCursor = { after: string; nextPosition: number };
 
-const COLLECTIONS_QUERY =
-  'query ($after: String) { collections(first: 250, after: $after) { nodes { id title handle } pageInfo { hasNextPage endCursor } } }';
-// Without a sort key, Shopify returns a collection's products in the collection's own order.
-const COLLECTION_PRODUCTS_QUERY =
-  'query ($id: ID!, $after: String) { collection(id: $id) { products(first: 250, after: $after) { nodes { id } pageInfo { hasNextPage endCursor } } } }';
 const FIRST_POSITION = 1;
 
 const collectionsDataSchema = z.object({
@@ -87,8 +86,7 @@ export class ShopifyCollectionsRetriever {
     );
     const { collection } = collectionProductsDataSchema.parse(data);
     if (collection === null) {
-      // A collection deleted after the collections list has no products left to walk.
-      return { rows: [], nextCursor: null, requestedQueryCost };
+      return createEmptyLastPage(requestedQueryCost);
     }
     const firstPosition = cursor?.nextPosition ?? FIRST_POSITION;
     const { nodes, nextCursor } = collection.products;

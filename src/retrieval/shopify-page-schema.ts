@@ -2,10 +2,17 @@ import { z } from 'zod';
 
 type ShopifyPage<Node> = { nodes: Node[]; nextCursor: string | null };
 
-// Another page without a cursor would end a walk early with nothing said, so it is refused.
+const nextPageInfoSchema = z.object({
+  hasNextPage: z.literal(true),
+  endCursor: z.string(),
+});
+const lastPageInfoSchema = z.object({
+  hasNextPage: z.literal(false),
+  endCursor: z.string().nullable(),
+});
 const pageInfoSchema = z.discriminatedUnion('hasNextPage', [
-  z.object({ hasNextPage: z.literal(true), endCursor: z.string() }),
-  z.object({ hasNextPage: z.literal(false), endCursor: z.string().nullable() }),
+  nextPageInfoSchema,
+  lastPageInfoSchema,
 ]);
 
 export function createShopifyPageSchema<Node extends z.ZodType>(

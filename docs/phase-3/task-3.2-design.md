@@ -290,8 +290,7 @@ Rejected: **keeping `""`**: two values meaning "none", and every query checking 
 ### 4.7 What orders need
 
 **(Boris, decision 16)** The orders retriever asks for all orders and takes what Shopify returns,
-which under `read_orders` is the last 60 days. A comment on the query says why older orders are
-missing.
+which under `read_orders` is the last 60 days.
 
 Rejected: **filtering to 60 days ourselves**: Shopify's rule written twice, free to disagree at the
 edge. **A warning from the saved scopes**: the same line for every store on every walk.

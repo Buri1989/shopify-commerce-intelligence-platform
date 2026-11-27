@@ -27,8 +27,6 @@ type ShopifyGraphqlError = z.infer<typeof errorSchema>;
 
 export function readShopifyAdminAnswer(answer: unknown): ShopifyAdminAnswer {
   const errors = readErrors(answer);
-  // Data that comes with errors may be missing fields, such as an order's total, so it is
-  // never handed on.
   if (errors !== undefined) {
     throw createAnswerError(errors);
   }
@@ -45,9 +43,9 @@ function readErrors(answer: unknown): ShopifyGraphqlError[] | undefined {
   return refused.success ? refused.data.errors : undefined;
 }
 
-// One answer becomes one error, so the first of Shopify's errors decides which.
 function createAnswerError(errors: ShopifyGraphqlError[]): Error {
-  const [{ message, extensions }] = errors;
+  const [firstError] = errors;
+  const { message, extensions } = firstError;
   if (extensions?.code === ACCESS_DENIED) {
     return new ShopifyAccessDeniedError(message);
   }

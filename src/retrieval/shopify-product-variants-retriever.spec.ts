@@ -4,10 +4,29 @@ import {
   STORE_GRAPHQL_URL,
   STORE_ID,
 } from '../../test/store-query-sender.js';
+import { graphql } from './graphql.js';
 import { ShopifyProductVariantsRetriever } from './shopify-product-variants-retriever.js';
 
-const PRODUCT_VARIANTS_QUERY =
-  'query ($after: String) { productVariants(first: 250, after: $after) { nodes { id title sku price position product { id } } pageInfo { hasNextPage endCursor } } }';
+const PRODUCT_VARIANTS_QUERY = graphql`
+  query ($after: String) {
+    productVariants(first: 250, after: $after) {
+      nodes {
+        id
+        title
+        sku
+        price
+        position
+        product {
+          id
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+`;
 const VARIANT = {
   id: 'gid://shopify/ProductVariant/40422183',
   title: 'Large / Blue',

@@ -27,8 +27,6 @@ export class ShopifyStoreQuerySender {
       if (!(error instanceof ShopifyAccessDeniedError)) {
         throw error;
       }
-      // A scope the store never granted needs a new authorization; its keys stay, because they
-      // still work for what was granted.
       throw new StoreMustAuthorizeError(storeId, error.message);
     }
   }

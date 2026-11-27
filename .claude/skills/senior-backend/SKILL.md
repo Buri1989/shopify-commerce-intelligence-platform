@@ -15,7 +15,7 @@ Apply this checklist while WRITING code, not after. Each item names its deep-div
 **Organization** — public API first, private helpers after; no nested function definitions (small inline callbacks excepted); one responsibility per module.
 **Errors** — fail fast; exceptions not return codes; never swallow; message carries operation + input + suggested fix; errors as types. → [clean-code.md#error-handling](references/clean-code.md#error-handling)
 **Objects vs data structures** — per type pick one: behavior-hiding object or transparent data. No hybrids. → [clean-code.md#objects-vs-data-structures](references/clean-code.md#objects-vs-data-structures)
-**Comments** — only WHY; refactor instead of explaining WHAT; delete commented-out code. → [clean-code.md#comments](references/clean-code.md#comments)
+**Comments** — none; a name, a smaller function or a type says it instead; delete commented-out code. → [clean-code.md#comments](references/clean-code.md#comments)
 **Tests** — behavior not implementation; edges and error paths; one concept per test. → [clean-code.md#unit-tests](references/clean-code.md#unit-tests)
 **Boundaries** — wrap third-party APIs behind your own interface; validate external data at the edge into typed shapes, trust types inward. → [clean-code.md#third-party-boundaries](references/clean-code.md#third-party-boundaries)
 **API & data** — evolve endpoints additively; idempotent writes; pick isolation level deliberately. → [api-data-practices.md](references/api-data-practices.md)
