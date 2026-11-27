@@ -1,3 +1,4 @@
+import { PRODUCT_ROW } from '../../test/retrieved-rows.js';
 import {
   createDataAnswer,
   LAST_PAGE_INFO,
@@ -108,16 +109,7 @@ describe('ShopifyProductsRetriever', () => {
       );
 
       expect(await retriever.retrieveProducts(STORE_ID, null)).toEqual({
-        rows: [
-          {
-            shopifyId: 108828309,
-            title: 'Linen shirt',
-            handle: 'linen-shirt',
-            vendor: 'North Mill',
-            productType: 'Shirts',
-            status: 'ACTIVE',
-          },
-        ],
+        rows: [PRODUCT_ROW],
         nextCursor: null,
         requestedQueryCost: 12,
       });

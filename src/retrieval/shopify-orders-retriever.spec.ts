@@ -5,7 +5,7 @@ import {
 } from '../../test/shopify-answers.js';
 import {
   ORDER_ITEM_ROW,
-  ORDER_ROW,
+  PLACED_ORDER_ROW,
   SHOPIFY_ORDER,
   SHOPIFY_ORDER_ITEM,
 } from '../../test/shopify-orders.js';
@@ -176,7 +176,7 @@ describe('ShopifyOrdersRetriever', () => {
       );
 
       expect(await retriever.retrieveOrders(STORE_ID, null)).toEqual({
-        rows: [{ ...ORDER_ROW, placedOn: '2026-11-26' }],
+        rows: [PLACED_ORDER_ROW],
         nextCursor: null,
         requestedQueryCost: 252,
       });

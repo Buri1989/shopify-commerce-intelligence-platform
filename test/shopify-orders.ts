@@ -46,3 +46,5 @@ export const ORDER_ROW = {
   items: [ORDER_ITEM_ROW],
   itemsNextCursor: null,
 };
+
+export const PLACED_ORDER_ROW = { ...ORDER_ROW, placedOn: '2026-11-26' };

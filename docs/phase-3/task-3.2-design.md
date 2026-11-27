@@ -443,6 +443,48 @@ per query. **No cost in the check**: decision 15's estimate never confirmed.
 
 The cost: a page field that only the check reads today.
 
+**(Boris, decision 47)** The walk follows pages through one reader, `readRetrievedPages(retrievePage,
+firstCursor)`, `read-retrieved-pages.ts`: the first page from the given cursor, then each next one,
+handed out one at a time.
+
+Rejected: **a loop per kind**: six copies of one loop. **A walk method on each retriever**: a second
+job for every retriever.
+
+**(Boris, decision 48)** The walk takes `StoreRetrievers`, one object of the four retrievers, each
+narrowed with `Pick` to the methods the walk calls.
+
+Rejected: **six functions holding the store id**: six wrappers repeating the retrievers' calls.
+**Each retriever its own parameter**: six parameters.
+
+**(Boris, decision 49)** One line per kind, named as its table: `products`, `productVariants`,
+`collections`, `collectionProducts`, `orders`, `orderItems`. `rows` is the rows the kind would write;
+`orderItems` counts the items inside the orders too, and only its extra calls as pages and cost.
+
+Rejected: **only the extra calls' items**: one line's `rows` meaning something else. **No items
+line**: the extra calls' cost never seen.
+
+**(Boris, decision 50)** The lines go through the app's pino logger, `Pick<PinoLogger, 'info'>`, with
+`context: 'walkStoreRetrievers'` and the message `kind walked`.
+
+Rejected: **Nest's `Logger`**: a second way of logging. **`console.log`**: no `service`, `env`, time
+or redaction.
+
+**(Boris, decision 51)** `check-retrievers.ts` builds an app context from `AppModule`, with no HTTP
+server; the store id is read with zod inside the same catch as the walk.
+
+Rejected: **its own module**: a second module list that falls behind `AppModule`. **Pieces built by
+hand**: Nest's wiring repeated.
+
+**(Boris, decision 52)** The counting lives in `walk-count.ts`: `WalkCount`, `addWalkCounts`,
+`countRetrievedPages`, and `countNestedPages` for a parent list with a count per row.
+
+Rejected: **inside the walk file**: three jobs in one file.
+
+**(Boris, decision 53)** The walk is two files: `store-walks.ts`, with `StoreRetrievers` and the four
+walks in order as `STORE_WALKS`, and `walk-store-retrievers.ts`, with the loop and the lines.
+
+Rejected: **one file**: two jobs in about 150 lines.
+
 ### 4.11 Phase questions and documentation
 
 Questions 1–6 (lines 475–480) are answered in `docs/phase-3/task-3.2-questions.md` by Boris, one at a
@@ -471,15 +513,16 @@ src/retrieval/       retrieval.module.ts
                      shopify-product-variants-retriever.ts
                      shopify-collections-retriever.ts
                      shopify-orders-retriever.ts
-                     check-retrievers.ts   walk-store-retrievers.ts
+                     check-retrievers.ts   walk-store-retrievers.ts   store-walks.ts
+                     walk-count.ts   read-retrieved-pages.ts
 src/access-tokens/   access-tokens.service.ts (getStoreAccess, StoreAccess)
 src/products/        products.repository.ts (NewProductVariant)
 src/collections/     collections.repository.ts (NewCollection)
 src/common/errors/   store-must-authorize.error.ts (an optional reason)
 src/installation/    installation.service.ts   installation.module.ts (the shop retriever)
 src/app.module.ts    RetrievalModule
-test/                shopify-answers.ts
-                     store-query-sender.ts
+test/                shopify-answers.ts   shopify-orders.ts   retrieved-rows.ts
+                     store-query-sender.ts   store-retrievers.ts   async-values.ts
                      access-tokens.e2e-spec.ts   installation.e2e-spec.ts   new-rows.ts
                      repository-modules.e2e-spec.ts
 ```
@@ -599,8 +642,12 @@ The exact field names and the reason chosen are copied from the Dashboard into t
   (id numbers, pointers, `null` for a deleted product or variant, §4.6's fields: `processedAt`,
   `shopMoney`, the price after all discounts, a null status kept, `placed_on` in the store's
   timezone across midnight, `""` as null), `nextCursor`, positions from `nextPosition`.
-- `walk-store-retrievers.spec.ts`: with fake retrievers, every page walked, one line per kind, no
-  store data in the lines.
+- `read-retrieved-pages.spec.ts`: the first page from the given cursor, each next one from the page
+  before, every page in order. `walk-count.spec.ts`: rows and pages added, the highest cost kept,
+  the children counted per row. `store-walks.spec.ts`: with fake retrievers, every page of each
+  kind, each collection's products, an order's remaining items from its items cursor, every item
+  counted. `walk-store-retrievers.spec.ts`: one line per kind in order, no store data in the lines,
+  a failing retriever stopping the walk.
 - E2E: the install with `ShopifyShopRetriever` faked; `getStoreAccess` returning address and key;
   the app builds with `RetrievalModule`.
 

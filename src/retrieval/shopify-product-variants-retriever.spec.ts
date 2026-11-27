@@ -1,3 +1,4 @@
+import { VARIANT_ROW } from '../../test/retrieved-rows.js';
 import {
   createDataAnswer,
   LAST_PAGE_INFO,
@@ -112,16 +113,7 @@ describe('ShopifyProductVariantsRetriever', () => {
       );
 
       expect(await retriever.retrieveProductVariants(STORE_ID, null)).toEqual({
-        rows: [
-          {
-            shopifyId: 40422183,
-            title: 'Large / Blue',
-            sku: 'LS-L-BLU',
-            price: '49.90',
-            position: 2,
-            productShopifyId: 108828309,
-          },
-        ],
+        rows: [VARIANT_ROW],
         nextCursor: null,
         requestedQueryCost: 12,
       });

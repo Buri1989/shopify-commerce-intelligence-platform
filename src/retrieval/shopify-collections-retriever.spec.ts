@@ -1,4 +1,8 @@
 import {
+  COLLECTION_PRODUCT_ROWS,
+  COLLECTION_ROW,
+} from '../../test/retrieved-rows.js';
+import {
   createDataAnswer,
   LAST_PAGE_INFO,
   NEXT_PAGE_INFO,
@@ -122,7 +126,7 @@ describe('ShopifyCollectionsRetriever', () => {
       );
 
       expect(await retriever.retrieveCollections(STORE_ID, null)).toEqual({
-        rows: [{ shopifyId: 482865238, title: 'Summer', handle: 'summer' }],
+        rows: [COLLECTION_ROW],
         nextCursor: null,
         requestedQueryCost: 12,
       });
@@ -223,10 +227,7 @@ describe('ShopifyCollectionsRetriever', () => {
           null,
         ),
       ).toEqual({
-        rows: [
-          { productShopifyId: 108828309, position: 1 },
-          { productShopifyId: 108828310, position: 2 },
-        ],
+        rows: COLLECTION_PRODUCT_ROWS,
         nextCursor: null,
         requestedQueryCost: 7,
       });
