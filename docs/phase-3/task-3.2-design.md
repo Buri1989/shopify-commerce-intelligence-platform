@@ -333,6 +333,19 @@ retriever: it is the shape every retriever returns.
 Rejected: **inside the products retriever until a second one uses it**: a products file holding a
 shape that is not about products, and changed again a step later to give it away.
 
+**(Boris, decision 35)** `NewProductVariant` sits beside `NewProduct` in `products.repository.ts`,
+built as 2.4 builds every `New…` type: variants belong to their products.
+
+Rejected: **built in the retriever from the table**: Drizzle outside a repository, and the type
+written again when variants are saved. **The fields written by hand**: decision 2's third shape.
+
+**(Boris, decision 36)** A Shopify page is read in one place: `createShopifyPageSchema(nodeSchema)`
+checks `nodes` and `pageInfo` and returns `{ nodes, nextCursor }`; another page without a cursor is
+refused.
+
+Rejected: **a shared page info schema and a next-cursor function**: the wrapper written in every
+retriever, and the reading apart from the check.
+
 ### 4.9 Tests
 
 **(Boris, decision 21)** A unit spec per file, `fetch` replaced by `vi.stubGlobal`, fake timers for
@@ -384,6 +397,7 @@ src/retrieval/       retrieval.module.ts
                      shopify-access-denied.error.ts
                      shopify-store-query-sender.ts
                      shopify-id-schema.ts   retrieved-page.ts
+                     shopify-page-schema.ts
                      shopify-shop-retriever.ts            (moved from src/installation/shopify-shop-client.ts)
                      shopify-products-retriever.ts
                      shopify-product-variants-retriever.ts
@@ -391,6 +405,7 @@ src/retrieval/       retrieval.module.ts
                      shopify-orders-retriever.ts
                      check-retrievers.ts   walk-store-retrievers.ts
 src/access-tokens/   access-tokens.service.ts (getStoreAccess, StoreAccess)
+src/products/        products.repository.ts (NewProductVariant)
 src/common/errors/   store-must-authorize.error.ts (an optional reason)
 src/installation/    installation.service.ts   installation.module.ts (the shop retriever)
 src/app.module.ts    RetrievalModule

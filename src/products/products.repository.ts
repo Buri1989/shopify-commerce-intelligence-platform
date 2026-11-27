@@ -5,12 +5,16 @@ import type { GeneratedColumns } from '../database/generated-columns.js';
 import { createPage, PAGE_QUERY_LIMIT, type Page } from '../database/page.js';
 import { refuseDuplicateRow } from '../database/refuse-duplicate-row.js';
 import { requireRowFound } from '../database/require-row-found.js';
-import { products } from '../database/schema/index.js';
+import { products, productVariants } from '../database/schema/index.js';
 
 export type Product = typeof products.$inferSelect;
 export type NewProduct = Omit<
   typeof products.$inferInsert,
   GeneratedColumns | 'storeId' | 'deletedAt'
+>;
+export type NewProductVariant = Omit<
+  typeof productVariants.$inferInsert,
+  GeneratedColumns | 'storeId'
 >;
 export type ProductChanges = Partial<Omit<NewProduct, 'shopifyId'>>;
 export type ProductFilters = { readonly status?: string };

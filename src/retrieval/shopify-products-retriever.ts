@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { NewProduct } from '../products/products.repository.js';
 import type { RetrievedPage } from './retrieved-page.js';
 import { createShopifyIdSchema } from './shopify-id-schema.js';
+import { createShopifyPageSchema } from './shopify-page-schema.js';
 import { ShopifyStoreQuerySender } from './shopify-store-query-sender.js';
 
 export type RetrievedProduct = NewProduct;
@@ -16,22 +17,16 @@ const textOrNullSchema = z
   .transform((text) => (text === '' ? null : text));
 
 const productsDataSchema = z.object({
-  products: z.object({
-    nodes: z.array(
-      z.object({
-        id: createShopifyIdSchema('Product'),
-        title: z.string().min(1),
-        handle: z.string().min(1),
-        vendor: textOrNullSchema,
-        productType: textOrNullSchema,
-        status: z.string().min(1),
-      }),
-    ),
-    pageInfo: z.object({
-      hasNextPage: z.boolean(),
-      endCursor: z.string().nullable(),
+  products: createShopifyPageSchema(
+    z.object({
+      id: createShopifyIdSchema('Product'),
+      title: z.string().min(1),
+      handle: z.string().min(1),
+      vendor: textOrNullSchema,
+      productType: textOrNullSchema,
+      status: z.string().min(1),
     }),
-  }),
+  ),
 });
 
 @Injectable()
@@ -59,9 +54,7 @@ export class ShopifyProductsRetriever {
         shopifyId: id,
         ...product,
       })),
-      nextCursor: products.pageInfo.hasNextPage
-        ? products.pageInfo.endCursor
-        : null,
+      nextCursor: products.nextCursor,
       requestedQueryCost,
     };
   }
