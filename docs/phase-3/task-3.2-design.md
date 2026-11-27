@@ -210,6 +210,14 @@ by every caller.
 
 The cost: this retriever's cursor differs from the others', which are Shopify's string.
 
+**(Boris, decision 38)** A collection Shopify no longer has, deleted between the collections list and
+its products walk, returns an empty last page.
+
+Rejected: **an error**: the walk stops at that collection on every try. **`null` instead of a
+page**: a second "nothing", and every caller doing what the empty page does.
+
+The cost: a wrong id from our own code also reads as an empty collection.
+
 **(Boris, decision 12)** Order items arrive inside their orders, up to 15 per order. An order with
 more gets one more call for the rest, 250 at a time. Shopify has no list of items across orders.
 
@@ -346,6 +354,21 @@ refused.
 Rejected: **a shared page info schema and a next-cursor function**: the wrapper written in every
 retriever, and the reading apart from the check.
 
+**(Boris, decision 37)** `NewCollection` sits in `src/collections/collections.repository.ts`, the
+file 5.1's collections repository fills, built as 2.4 builds every `New…` type.
+
+Rejected: **beside `NewProductVariant` in the products repository**: collections are not part of
+products. **Built in the retriever from the table**: Drizzle outside a repository. **The fields
+written by hand**: decision 2's third shape.
+
+The cost: until 5.1 the folder holds one type and no class.
+
+**(Boris, decision 39)** The collection's id is written back into Shopify's form in the retriever,
+`gid://shopify/Collection/<id>`; the second use, in the orders retriever, decides where it moves.
+
+Rejected: **a shared function now**: one caller, and no more said than the template.
+**Beside the id schema**: a schema file building strings, with one caller.
+
 ### 4.9 Tests
 
 **(Boris, decision 21)** A unit spec per file, `fetch` replaced by `vi.stubGlobal`, fake timers for
@@ -406,6 +429,7 @@ src/retrieval/       retrieval.module.ts
                      check-retrievers.ts   walk-store-retrievers.ts
 src/access-tokens/   access-tokens.service.ts (getStoreAccess, StoreAccess)
 src/products/        products.repository.ts (NewProductVariant)
+src/collections/     collections.repository.ts (NewCollection)
 src/common/errors/   store-must-authorize.error.ts (an optional reason)
 src/installation/    installation.service.ts   installation.module.ts (the shop retriever)
 src/app.module.ts    RetrievalModule
