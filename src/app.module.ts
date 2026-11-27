@@ -8,6 +8,7 @@ import { HealthModule } from './health/health.module.js';
 import { InstallationModule } from './installation/installation.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { ProductsModule } from './products/products.module.js';
+import { RetrievalModule } from './retrieval/retrieval.module.js';
 import { StoresModule } from './stores/stores.module.js';
 
 @Module({
@@ -19,6 +20,7 @@ import { StoresModule } from './stores/stores.module.js';
     ProductsModule,
     OrdersModule,
     AccessTokensModule,
+    RetrievalModule,
     InstallationModule,
   ],
   controllers: [],
