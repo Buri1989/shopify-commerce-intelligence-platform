@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { NewCollection } from '../collections/collections.repository.js';
+import { createShopifyId } from './create-shopify-id.js';
 import {
   COLLECTION_PRODUCTS_QUERY,
   COLLECTIONS_QUERY,
@@ -80,7 +81,7 @@ export class ShopifyCollectionsRetriever {
       storeId,
       COLLECTION_PRODUCTS_QUERY,
       {
-        id: `gid://shopify/Collection/${collectionShopifyId}`,
+        id: createShopifyId('Collection', collectionShopifyId),
         after: cursor?.after ?? null,
       },
     );

@@ -20,8 +20,8 @@ export type NewOrderItem = Omit<
 >;
 export type OrderChanges = Partial<Omit<NewOrder, 'shopifyId'>>;
 export type OrderFilters = {
-  readonly placedFrom?: Date; // included
-  readonly placedBefore?: Date; // not included
+  readonly placedFrom?: Date;
+  readonly placedBefore?: Date;
   readonly financialStatus?: string;
 };
 export type OrderCursor = Pick<Order, 'placedAt' | 'id'>;

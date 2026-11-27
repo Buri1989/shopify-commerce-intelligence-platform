@@ -1,6 +1,17 @@
 import { createDataAnswer } from '../../test/shopify-answers.js';
+import { graphql } from './graphql.js';
 import { ShopifyShopRetriever } from './shopify-shop-retriever.js';
 
+const SHOP_QUERY = graphql`
+  {
+    shop {
+      id
+      name
+      currencyCode
+      myshopifyDomain
+    }
+  }
+`;
 const SHOP_DOMAIN = 'example-store.myshopify.com';
 const GRAPHQL_URL = `https://${SHOP_DOMAIN}/admin/api/2026-10/graphql.json`;
 const SHOP = {
@@ -38,7 +49,7 @@ describe('ShopifyShopRetriever', () => {
           'Content-Type': 'application/json',
           'X-Shopify-Access-Token': 'access-token',
         },
-        body: '{"query":"{ shop { id name currencyCode myshopifyDomain } }","variables":{}}',
+        body: JSON.stringify({ query: SHOP_QUERY, variables: {} }),
         signal: expect.any(AbortSignal),
       });
     });

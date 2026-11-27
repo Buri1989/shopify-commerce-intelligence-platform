@@ -1,4 +1,8 @@
-import { createDataAnswer } from '../../test/shopify-answers.js';
+import {
+  createDataAnswer,
+  LAST_PAGE_INFO,
+  NEXT_PAGE_INFO,
+} from '../../test/shopify-answers.js';
 import {
   createStoreQuerySender,
   STORE_GRAPHQL_URL,
@@ -35,7 +39,6 @@ const VARIANT = {
   position: 2,
   product: { id: 'gid://shopify/Product/108828309' },
 };
-const LAST_PAGE = { hasNextPage: false, endCursor: 'cursor-2' };
 
 describe('ShopifyProductVariantsRetriever', () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -58,7 +61,7 @@ describe('ShopifyProductVariantsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer({
-            productVariants: { nodes: [], pageInfo: LAST_PAGE },
+            productVariants: { nodes: [], pageInfo: LAST_PAGE_INFO },
           }),
         ),
       );
@@ -80,7 +83,7 @@ describe('ShopifyProductVariantsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer({
-            productVariants: { nodes: [], pageInfo: LAST_PAGE },
+            productVariants: { nodes: [], pageInfo: LAST_PAGE_INFO },
           }),
         ),
       );
@@ -102,7 +105,7 @@ describe('ShopifyProductVariantsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer(
-            { productVariants: { nodes: [VARIANT], pageInfo: LAST_PAGE } },
+            { productVariants: { nodes: [VARIANT], pageInfo: LAST_PAGE_INFO } },
             12,
           ),
         ),
@@ -130,7 +133,7 @@ describe('ShopifyProductVariantsRetriever', () => {
           createDataAnswer({
             productVariants: {
               nodes: [VARIANT],
-              pageInfo: { hasNextPage: true, endCursor: 'cursor-2' },
+              pageInfo: NEXT_PAGE_INFO,
             },
           }),
         ),
@@ -147,7 +150,7 @@ describe('ShopifyProductVariantsRetriever', () => {
           createDataAnswer({
             productVariants: {
               nodes: [{ ...VARIANT, sku: null }],
-              pageInfo: LAST_PAGE,
+              pageInfo: LAST_PAGE_INFO,
             },
           }),
         ),
@@ -169,7 +172,7 @@ describe('ShopifyProductVariantsRetriever', () => {
                   product: { id: 'gid://shopify/Collection/108828309' },
                 },
               ],
-              pageInfo: LAST_PAGE,
+              pageInfo: LAST_PAGE_INFO,
             },
           }),
         ),
@@ -186,7 +189,7 @@ describe('ShopifyProductVariantsRetriever', () => {
           createDataAnswer({
             productVariants: {
               nodes: [{ ...VARIANT, price: '49,90' }],
-              pageInfo: LAST_PAGE,
+              pageInfo: LAST_PAGE_INFO,
             },
           }),
         ),

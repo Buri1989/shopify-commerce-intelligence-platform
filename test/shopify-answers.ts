@@ -8,6 +8,8 @@ const FULL_BUCKET = 1000;
 const RESTORE_RATE = 100;
 
 export const EMPTY_PRODUCTS_DATA = { products: { nodes: [] } };
+export const LAST_PAGE_INFO = { hasNextPage: false, endCursor: 'cursor-2' };
+export const NEXT_PAGE_INFO = { hasNextPage: true, endCursor: 'cursor-2' };
 
 export function createDataAnswer(
   data: unknown,

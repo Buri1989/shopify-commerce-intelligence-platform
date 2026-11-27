@@ -1,4 +1,8 @@
-import { createDataAnswer } from '../../test/shopify-answers.js';
+import {
+  createDataAnswer,
+  LAST_PAGE_INFO,
+  NEXT_PAGE_INFO,
+} from '../../test/shopify-answers.js';
 import {
   createStoreQuerySender,
   STORE_GRAPHQL_URL,
@@ -33,7 +37,6 @@ const PRODUCT = {
   productType: 'Shirts',
   status: 'ACTIVE',
 };
-const LAST_PAGE = { hasNextPage: false, endCursor: 'cursor-2' };
 
 describe('ShopifyProductsRetriever', () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -53,7 +56,9 @@ describe('ShopifyProductsRetriever', () => {
     it('asks for the first 250 products when there is no cursor', async () => {
       fetchMock.mockResolvedValue(
         Response.json(
-          createDataAnswer({ products: { nodes: [], pageInfo: LAST_PAGE } }),
+          createDataAnswer({
+            products: { nodes: [], pageInfo: LAST_PAGE_INFO },
+          }),
         ),
       );
 
@@ -73,7 +78,9 @@ describe('ShopifyProductsRetriever', () => {
     it('asks for the 250 products after the cursor', async () => {
       fetchMock.mockResolvedValue(
         Response.json(
-          createDataAnswer({ products: { nodes: [], pageInfo: LAST_PAGE } }),
+          createDataAnswer({
+            products: { nodes: [], pageInfo: LAST_PAGE_INFO },
+          }),
         ),
       );
 
@@ -94,7 +101,7 @@ describe('ShopifyProductsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer(
-            { products: { nodes: [PRODUCT], pageInfo: LAST_PAGE } },
+            { products: { nodes: [PRODUCT], pageInfo: LAST_PAGE_INFO } },
             12,
           ),
         ),
@@ -122,7 +129,7 @@ describe('ShopifyProductsRetriever', () => {
           createDataAnswer({
             products: {
               nodes: [PRODUCT],
-              pageInfo: { hasNextPage: true, endCursor: 'cursor-2' },
+              pageInfo: NEXT_PAGE_INFO,
             },
           }),
         ),
@@ -139,7 +146,7 @@ describe('ShopifyProductsRetriever', () => {
           createDataAnswer({
             products: {
               nodes: [{ ...PRODUCT, vendor: '', productType: '' }],
-              pageInfo: LAST_PAGE,
+              pageInfo: LAST_PAGE_INFO,
             },
           }),
         ),
@@ -158,7 +165,7 @@ describe('ShopifyProductsRetriever', () => {
           createDataAnswer({
             products: {
               nodes: [{ ...PRODUCT, id: 'gid://shopify/Collection/108828309' }],
-              pageInfo: LAST_PAGE,
+              pageInfo: LAST_PAGE_INFO,
             },
           }),
         ),

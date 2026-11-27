@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { InstalledStore } from '../stores/stores.repository.js';
+import { SHOP_QUERY } from './queries/shopify-shop-query.js';
 import { sendShopifyAdminQuery } from './send-shopify-admin-query.js';
 import { createShopifyIdSchema } from './shopify-id-schema.js';
 
@@ -8,7 +9,6 @@ export type RetrievedShop = Pick<
   'shopifyId' | 'shopDomain' | 'name' | 'currency'
 >;
 
-const SHOP_QUERY = '{ shop { id name currencyCode myshopifyDomain } }';
 const NO_VARIABLES = {};
 
 const shopDataSchema = z.object({

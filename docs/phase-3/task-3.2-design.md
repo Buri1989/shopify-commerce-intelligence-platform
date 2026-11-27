@@ -223,6 +223,12 @@ more gets one more call for the rest, 250 at a time. Shopify has no list of item
 
 Rejected: **one items call per order**: 10,000 calls for 10,000 orders.
 
+**(Boris, decision 42)** An order Shopify no longer has, deleted between its orders page and the call
+for its remaining items, returns an empty last page, as decision 38 does for a collection.
+
+Rejected: **an error**: the walk stops at that order on every try, and two retrievers answer one
+case two ways.
+
 **(Boris, decision 15)** Page sizes: 250, Shopify's largest, for products, variants, collections and
 a collection's products; 50 orders with up to 15 items each, about 800 points by estimate. A walk
 costs the same points whatever the page size, so the largest page sends the fewest requests.
@@ -368,6 +374,42 @@ The cost: until 5.1 the folder holds one type and no class.
 Rejected: **a shared function now**: one caller, and no more said than the template.
 **Beside the id schema**: a schema file building strings, with one caller.
 
+**(Boris, decision 40)** At its second use, Shopify's id form moves into `createShopifyId(type,
+shopifyId)`, `create-shopify-id.ts`; the collections and orders retrievers use it.
+
+Rejected: **both templates inline**: the form written twice. **Beside the id schema, the file
+renamed**: five imports changed for a rename.
+
+**(Boris, decision 41)** At its second use, the money check moves into `shopifyAmountSchema`,
+`shopify-amount-schema.ts`: a decimal string, kept as Shopify sent it.
+
+Rejected: **only the pattern shared**: the check rebuilt at every amount.
+
+**(Boris, decision 43)** The store's day is worked out by `resolveStoreDay(moment, timezone)`, its own
+file with its own spec; the orders retriever calls it for `placed_on`.
+
+Rejected: **a helper inside the orders retriever**: a second job in that file, each timezone case
+tested through a whole order answer.
+
+**(Boris, decision 44)** The orders retriever is three files, one job each: `shopify-order-item-schema.ts`
+(the item's check and row), `shopify-order-schema.ts` (the order's), and the retriever (the two
+queries, their pages and the store's day).
+
+Rejected: **two retriever classes**: the orders file still 90 lines, and a sixth retriever for orders
+over 15 items. **Only the mapping moved out**: the order checked in one file and converted in another.
+
+**(Boris, decision 45)** A query is written across lines with the `graphql` tag, `graphql.ts`, and sent
+on one line; Prettier lays out the query inside the tag, and the specs write it the same way.
+
+Rejected: **plain multi-line strings**: specs that fail on a change of spaces. **`.graphql` files**: a
+loader and a build step for five queries.
+
+**(Boris, decision 46)** Query text lives in `src/retrieval/queries/`, one file per retriever; the
+retrievers and schemas hold no query text.
+
+Rejected: **one file with every query**: one file changing for five reasons, decision 19's rejected
+class done with strings. **Queries in the retriever files**: code and long text mixed in one file.
+
 ### 4.9 Tests
 
 **(Boris, decision 21)** A unit spec per file, `fetch` replaced by `vi.stubGlobal`, fake timers for
@@ -419,7 +461,11 @@ src/retrieval/       retrieval.module.ts
                      shopify-access-denied.error.ts
                      shopify-store-query-sender.ts
                      shopify-id-schema.ts   retrieved-page.ts
-                     shopify-page-schema.ts
+                     shopify-page-schema.ts   create-shopify-id.ts   shopify-amount-schema.ts
+                     graphql.ts   resolve-store-day.ts
+                     shopify-order-schema.ts   shopify-order-item-schema.ts
+                     queries/   shopify-shop-query.ts   shopify-products-query.ts   shopify-product-variants-query.ts
+                                shopify-collections-queries.ts   shopify-orders-queries.ts
                      shopify-shop-retriever.ts            (moved from src/installation/shopify-shop-client.ts)
                      shopify-products-retriever.ts
                      shopify-product-variants-retriever.ts

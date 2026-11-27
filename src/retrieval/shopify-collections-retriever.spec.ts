@@ -1,4 +1,8 @@
-import { createDataAnswer } from '../../test/shopify-answers.js';
+import {
+  createDataAnswer,
+  LAST_PAGE_INFO,
+  NEXT_PAGE_INFO,
+} from '../../test/shopify-answers.js';
 import {
   createStoreQuerySender,
   STORE_GRAPHQL_URL,
@@ -47,8 +51,6 @@ const PRODUCT_NODES = [
   { id: 'gid://shopify/Product/108828309' },
   { id: 'gid://shopify/Product/108828310' },
 ];
-const LAST_PAGE = { hasNextPage: false, endCursor: 'cursor-2' };
-const NEXT_PAGE = { hasNextPage: true, endCursor: 'cursor-2' };
 
 describe('ShopifyCollectionsRetriever', () => {
   const fetchMock = vi.fn<typeof fetch>();
@@ -68,7 +70,9 @@ describe('ShopifyCollectionsRetriever', () => {
     it('asks for the first 250 collections when there is no cursor', async () => {
       fetchMock.mockResolvedValue(
         Response.json(
-          createDataAnswer({ collections: { nodes: [], pageInfo: LAST_PAGE } }),
+          createDataAnswer({
+            collections: { nodes: [], pageInfo: LAST_PAGE_INFO },
+          }),
         ),
       );
 
@@ -88,7 +92,9 @@ describe('ShopifyCollectionsRetriever', () => {
     it('asks for the 250 collections after the cursor', async () => {
       fetchMock.mockResolvedValue(
         Response.json(
-          createDataAnswer({ collections: { nodes: [], pageInfo: LAST_PAGE } }),
+          createDataAnswer({
+            collections: { nodes: [], pageInfo: LAST_PAGE_INFO },
+          }),
         ),
       );
 
@@ -109,7 +115,7 @@ describe('ShopifyCollectionsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer(
-            { collections: { nodes: [COLLECTION], pageInfo: LAST_PAGE } },
+            { collections: { nodes: [COLLECTION], pageInfo: LAST_PAGE_INFO } },
             12,
           ),
         ),
@@ -126,7 +132,7 @@ describe('ShopifyCollectionsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer({
-            collections: { nodes: [COLLECTION], pageInfo: NEXT_PAGE },
+            collections: { nodes: [COLLECTION], pageInfo: NEXT_PAGE_INFO },
           }),
         ),
       );
@@ -142,7 +148,7 @@ describe('ShopifyCollectionsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer({
-            collection: { products: { nodes: [], pageInfo: LAST_PAGE } },
+            collection: { products: { nodes: [], pageInfo: LAST_PAGE_INFO } },
           }),
         ),
       );
@@ -171,7 +177,7 @@ describe('ShopifyCollectionsRetriever', () => {
       fetchMock.mockResolvedValue(
         Response.json(
           createDataAnswer({
-            collection: { products: { nodes: [], pageInfo: LAST_PAGE } },
+            collection: { products: { nodes: [], pageInfo: LAST_PAGE_INFO } },
           }),
         ),
       );
@@ -202,7 +208,7 @@ describe('ShopifyCollectionsRetriever', () => {
           createDataAnswer(
             {
               collection: {
-                products: { nodes: PRODUCT_NODES, pageInfo: LAST_PAGE },
+                products: { nodes: PRODUCT_NODES, pageInfo: LAST_PAGE_INFO },
               },
             },
             7,
@@ -231,7 +237,7 @@ describe('ShopifyCollectionsRetriever', () => {
         Response.json(
           createDataAnswer({
             collection: {
-              products: { nodes: PRODUCT_NODES, pageInfo: LAST_PAGE },
+              products: { nodes: PRODUCT_NODES, pageInfo: LAST_PAGE_INFO },
             },
           }),
         ),
@@ -254,7 +260,7 @@ describe('ShopifyCollectionsRetriever', () => {
         Response.json(
           createDataAnswer({
             collection: {
-              products: { nodes: PRODUCT_NODES, pageInfo: NEXT_PAGE },
+              products: { nodes: PRODUCT_NODES, pageInfo: NEXT_PAGE_INFO },
             },
           }),
         ),
