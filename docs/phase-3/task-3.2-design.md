@@ -320,6 +320,19 @@ Rejected: **3.1's `Client` and `fetch`**: not the spec's verb. **No `Shopify` pr
 Rejected: **the 3.1 design too**: 3.1's tree would show a folder 3.1 never had. **The code only**:
 `AGENTS.md` naming a method that no longer exists.
 
+**(Boris, decision 33)** A Shopify id becomes a number in one place: `createShopifyIdSchema(type)`,
+a zod schema that checks `gid://shopify/<type>/<digits>` and returns the number. Every retriever's
+schema uses it, the shop retriever's too.
+
+Rejected: **a plain function for the conversion only**: the pattern written in every retriever, and
+the conversion trusting a check made in another place.
+
+**(Boris, decision 34)** `RetrievedPage` has its own file, `retrieved-page.ts`, from the first
+retriever: it is the shape every retriever returns.
+
+Rejected: **inside the products retriever until a second one uses it**: a products file holding a
+shape that is not about products, and changed again a step later to give it away.
+
 ### 4.9 Tests
 
 **(Boris, decision 21)** A unit spec per file, `fetch` replaced by `vi.stubGlobal`, fake timers for
@@ -370,6 +383,7 @@ src/retrieval/       retrieval.module.ts
                      wait-for-bucket-refill.ts
                      shopify-access-denied.error.ts
                      shopify-store-query-sender.ts
+                     shopify-id-schema.ts   retrieved-page.ts
                      shopify-shop-retriever.ts            (moved from src/installation/shopify-shop-client.ts)
                      shopify-products-retriever.ts
                      shopify-product-variants-retriever.ts
@@ -381,6 +395,7 @@ src/common/errors/   store-must-authorize.error.ts (an optional reason)
 src/installation/    installation.service.ts   installation.module.ts (the shop retriever)
 src/app.module.ts    RetrievalModule
 test/                shopify-answers.ts
+                     store-query-sender.ts
                      access-tokens.e2e-spec.ts   installation.e2e-spec.ts   new-rows.ts
                      repository-modules.e2e-spec.ts
 ```

@@ -2,16 +2,16 @@ import {
   createDataAnswer,
   createErrorAnswer,
 } from '../../test/shopify-answers.js';
+import {
+  STORE_ACCESS,
+  STORE_GRAPHQL_URL,
+  STORE_ID,
+} from '../../test/store-query-sender.js';
 import type { AccessTokensService } from '../access-tokens/access-tokens.service.js';
 import { ShopifyUnavailableError } from '../common/errors/shopify-unavailable.error.js';
 import { StoreMustAuthorizeError } from '../common/errors/store-must-authorize.error.js';
 import { ShopifyStoreQuerySender } from './shopify-store-query-sender.js';
 
-const STORE_ID = 5;
-const STORE_ACCESS = {
-  shopDomain: 'store-five.myshopify.com',
-  accessToken: 'store-five-token',
-};
 const QUERY =
   'query ($after: String) { orders(first: 50, after: $after) { nodes { id } } }';
 const VARIABLES = { after: null };
@@ -42,7 +42,7 @@ describe('ShopifyStoreQuerySender', () => {
 
       expect(getStoreAccess).toHaveBeenCalledExactlyOnceWith(STORE_ID);
       expect(fetchMock).toHaveBeenCalledExactlyOnceWith(
-        'https://store-five.myshopify.com/admin/api/2026-10/graphql.json',
+        STORE_GRAPHQL_URL,
         expect.objectContaining({
           headers: expect.objectContaining({
             'X-Shopify-Access-Token': 'store-five-token',

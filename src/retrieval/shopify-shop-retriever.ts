@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { InstalledStore } from '../stores/stores.repository.js';
 import { sendShopifyAdminQuery } from './send-shopify-admin-query.js';
+import { createShopifyIdSchema } from './shopify-id-schema.js';
 
 export type RetrievedShop = Pick<
   InstalledStore,
@@ -12,7 +13,7 @@ const NO_VARIABLES = {};
 
 const shopDataSchema = z.object({
   shop: z.object({
-    id: z.string().regex(/^gid:\/\/shopify\/Shop\/\d+$/),
+    id: createShopifyIdSchema('Shop'),
     name: z.string().min(1),
     currencyCode: z.string().length(3),
     myshopifyDomain: z.string().min(1),
@@ -31,7 +32,7 @@ export class ShopifyShopRetriever {
     );
     const { shop } = shopDataSchema.parse(data);
     return {
-      shopifyId: Number(shop.id.split('/').at(-1)),
+      shopifyId: shop.id,
       shopDomain: shop.myshopifyDomain,
       name: shop.name,
       currency: shop.currencyCode,
