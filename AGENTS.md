@@ -342,7 +342,7 @@ full reference. Apply them while writing, not after. The rules that come up most
   10-second limit, and a 429, a 5xx or no answer as `ShopifyUnavailableError` (503). A refusal the
   caller must act on is `ShopifyRefusedError`, which the caller turns into its own answer. The Admin
   API version is a constant in the file that sends the query.
-- A store's access token comes only from `AccessTokensService.getStoreAccessToken(storeId)`. With 5
+- A store's access token comes only from `AccessTokensService.getStoreAccess(storeId)`. With 5
   minutes or less left it refreshes inside `StoresRepository.refreshStoreCredentials`, under
   `SELECT … FOR UPDATE`; a refused refresh deletes only the refused keys. `StoreMustAuthorizeError`
   (409) means the store installs again; background work tells it from `ShopifyUnavailableError` by
@@ -358,13 +358,14 @@ full reference. Apply them while writing, not after. The rules that come up most
   is in the README's table, changed in the same pull request as the Dashboard.
 - Tests: a piece that calls Shopify has a unit spec with `fetch` replaced by `vi.stubGlobal`, which
   checks the exact request and how each answer is read. E2E specs replace the pieces themselves,
-  `ShopifyTokenClient` and `ShopifyShopClient`, through `createTestApp([], [{ provide, useValue }])`,
-  never Shopify's address. The install and access-token e2e specs run on their own migrated
-  databases, `installation_e2e` and `access_tokens_e2e`. `test/shopify-hmac.ts` signs a callback as
-  Shopify does; `test/capturing-destination.ts` captures log lines.
+  `ShopifyTokenClient` and `ShopifyShopRetriever`, through
+  `createTestApp([], [{ provide, useValue }])`, never Shopify's address. The install and
+  access-token e2e specs run on their own migrated databases, `installation_e2e` and
+  `access_tokens_e2e`. `test/shopify-hmac.ts` signs a callback as Shopify does;
+  `test/capturing-destination.ts` captures log lines.
 - A new spec's helpers go into `test/<topic>.ts` from the first one, as
   `test/installation-requests.ts` does; the spec holds the `describe` and `it` blocks.
 - A method name is the real verb plus the full object, saying whose it is: `installStore`,
-  `findStoreCredentials`, `getStoreAccessToken`. No soft verb in front of the real one (`save`,
+  `findStoreCredentials`, `getStoreAccess`. No soft verb in front of the real one (`save`,
   `mark`, `record`, `set`) and no event noun (`Installation`); the object is named as its type or
   table names it.
