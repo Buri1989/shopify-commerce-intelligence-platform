@@ -185,16 +185,17 @@ The app is registered by hand in Shopify's Dev Dashboard as Commerce Intelligenc
 one client id and one secret, serves every store; each install adds one `stores` row and one
 `store_credentials` row. The settings, under the Dashboard's own field names:
 
-| Field                      | Value                                                           |
-| -------------------------- | --------------------------------------------------------------- |
-| App name                   | Commerce Intelligence                                           |
-| App URL                    | `https://api.commerce-intelligence.click/installation/start`    |
-| Embed app in Shopify admin | unchecked                                                       |
-| Allowed redirection URL(s) | `https://api.commerce-intelligence.click/installation/callback` |
-| Use legacy install flow    | checked                                                         |
-| Scopes                     | `read_products,read_orders`                                     |
-| Version name (optional)    | empty                                                           |
-| Webhooks API version       | `2026-10`, the form's default                                   |
+| Field                          | Value                                                           |
+| ------------------------------ | --------------------------------------------------------------- |
+| App name                       | Commerce Intelligence                                           |
+| App URL                        | `https://api.commerce-intelligence.click/installation/start`    |
+| Embed app in Shopify admin     | unchecked                                                       |
+| Allowed redirection URL(s)     | `https://api.commerce-intelligence.click/installation/callback` |
+| Use legacy install flow        | checked                                                         |
+| Scopes                         | `read_products,read_orders`                                     |
+| Version name (optional)        | empty                                                           |
+| Webhooks API version           | `2026-10`, the form's default                                   |
+| Protected customer data access | Level 1: Customer data, reason Analytics; no Level 2 fields     |
 
 Distribution is public, chosen in the Partner Dashboard, and Shopify allows no change back; the app
 has no App Store listing. The client id is `shopifyClientId` in `infra/lib/config/stage-config.ts`.
